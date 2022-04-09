@@ -48,7 +48,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 2 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
 
 /* USER CODE END PD */
 
@@ -63,19 +63,28 @@ typedef enum {
 #define MAX_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.2
 
 // PID
-#define P_PITCH_GAIN 50 // 16
-#define I_PITCH_GAIN 0.02 // 0.01
-#define D_PITCH_GAIN 20 // 24
+#define P_PITCH_GAIN 20 //
+#define I_PITCH_GAIN 0.02 //
+#define D_PITCH_GAIN 20 //
 
-#define P_ROLL_GAIN 50 // 16
-#define I_ROLL_GAIN 0.02 // 0.01
-#define D_ROLL_GAIN 20 // 24
+#define P_ROLL_GAIN 20 //
+#define I_ROLL_GAIN 0.02 //
+#define D_ROLL_GAIN 20 //
 
-#define P_YAW_GAIN 30
+#define P_YAW_GAIN 10
 #define I_YAW_GAIN 0.01
 #define D_YAW_GAIN 10
 
 #define MAX_LOST_CONN_COUNTER 50
+
+#define FREQ 200
+#define SSF_GYRO 65.5
+#define X 0
+#define Y 1
+#define Z 2
+#define YAW 0
+#define PITCH 1
+#define ROLL 2
 
 /* USER CODE END PM */
 
@@ -90,31 +99,31 @@ float g_gx = 0;
 float g_gy = 0;
 float g_gz = 0;
 
-// Min values from calibration
-float g_min_ax = -5000;
-float g_min_ay = -5000;
-float g_min_gx = -2000;
-float g_min_gy = -2000;
-float g_min_gz = -2000;
+// Calculated angles from gyro's values in that order: X, Y, Z
+float gyro_angle[3]  = {0, 0, 0};
+float acc_angle[3] = {0, 0, 0};
+float measures[3] = {0, 0, 0};
+long acc_total_vector;
+uint8_t initialized = 0;
 
-// Max values from calibration
-float g_max_ax = 5000;
-float g_max_ay = 5000;
-float g_max_gx = 2000;
-float g_max_gy = 2000;
-float g_max_gz = 2000;
+float g_angle_x = 0;
+float g_angle_y = 0;
+float g_angle_z = 0;
+float g_gyro_x = 0;
+float g_gyro_y = 0;
+float g_gyro_z = 0;
 
 int16_t g_mx = 0;
 int16_t g_my = 0;
 int16_t g_mz = 0;
 
 // Offset values after calibration
-float g_ax_offset = 422;
-float g_ay_offset = 783;
+float g_ax_offset = -422;
+float g_ay_offset = -783;
 float g_az_offset = -618;
-float g_gx_offset = -288;
+float g_gx_offset = 288;
 float g_gy_offset = -128;
-float g_gz_offset = 32;
+float g_gz_offset = -32;
 
 float g_az_current = 0;
 
@@ -174,6 +183,54 @@ void ctl_motors_speed(uint32_t m1, uint32_t m2,
 
 uint8_t calibrated() {
   return 1;
+}
+
+/**
+ * Calculate real angles from gyro and accelerometer's values
+ */
+void calc_angles() {
+  // Angle calculation using integration
+  gyro_angle[X] += (g_gx / (FREQ * SSF_GYRO));
+  gyro_angle[Y] += (-g_gy / (FREQ * SSF_GYRO)); // Change sign to match the accelerometer's one
+
+  // Transfer roll to pitch if IMU has yawed
+  gyro_angle[Y] += gyro_angle[X] * sin(g_gz * (M_PI / (FREQ * SSF_GYRO * 180)));
+  gyro_angle[X] -= gyro_angle[Y] * sin(g_gz * (M_PI / (FREQ * SSF_GYRO * 180)));
+
+  // Calculate total 3D acceleration vector : √(X² + Y² + Z²)
+  acc_total_vector = sqrt(pow(g_ax, 2) + pow(g_ay, 2) + pow(g_az, 2));
+
+  // To prevent asin to produce a NaN, make sure the input value is within [-1;+1]
+  if (abs(g_ax) < acc_total_vector) {
+    g_ax = asin((float)g_ay / acc_total_vector) * (180 / M_PI); // asin gives angle in radian. Convert to degree multiplying by 180/pi
+  }
+
+  if (abs(g_ay) < acc_total_vector) {
+    g_ay = asin((float)g_ax / acc_total_vector) * (180 / M_PI);
+  }
+
+  if (initialized) {
+    // Correct the drift of the gyro with the accelerometer
+    gyro_angle[X] = gyro_angle[X] * 0.9996 + acc_angle[X] * 0.0004;
+    gyro_angle[Y] = gyro_angle[Y] * 0.9996 + acc_angle[Y] * 0.0004;
+  }
+  else {
+    // At very first start, init gyro angles with accelerometer angles
+    gyro_angle[X] = acc_angle[X];
+    gyro_angle[Y] = acc_angle[Y];
+
+    initialized = 1;
+  }
+
+  // To dampen the pitch and roll angles a complementary filter is used
+  measures[ROLL]  = measures[ROLL]  * 0.9 + gyro_angle[X] * 0.1;
+  measures[PITCH] = measures[PITCH] * 0.9 + gyro_angle[Y] * 0.1;
+  measures[YAW] = -g_gz / SSF_GYRO; // Store the angular motion for this axis
+
+  // Norm [-1, 1]
+  g_angle_x = -measures[PITCH];
+  g_angle_y = measures[ROLL];
+  g_angle_z += measures[YAW]*0.001;
 }
 
 /* USER CODE END PFP */
@@ -359,12 +416,12 @@ void TIM3_IRQHandler(void)
   HMC5883L_getHeading(&g_mx, &g_my, &g_mz);
 
   if (!calibrated()) {
-    float ax = -g_dev1.Accelerometer_X + g_ax_offset;
-    float ay = -g_dev1.Accelerometer_Y + g_ay_offset;
+    float ax = g_dev1.Accelerometer_X + g_ax_offset;
+    float ay = g_dev1.Accelerometer_Y + g_ay_offset;
     float az = atan2(g_my, g_mx);
-    float gx = -g_dev1.Gyroscope_X + g_gx_offset;
+    float gx = g_dev1.Gyroscope_X + g_gx_offset;
     float gy = g_dev1.Gyroscope_Y + g_gy_offset;
-    float gz = -g_dev1.Gyroscope_Z + g_gz_offset;
+    float gz = g_dev1.Gyroscope_Z + g_gz_offset;
 
     g_ax = SimpleKalmanFilter_updateEstimate(&g_filters[0], ax);
     g_ay = SimpleKalmanFilter_updateEstimate(&g_filters[1], ay);
@@ -374,13 +431,12 @@ void TIM3_IRQHandler(void)
     g_gz = SimpleKalmanFilter_updateEstimate(&g_filters[5], gz);
   }
   else {
-    // Norm [-1, 1]
-    float ax = limit(-g_dev1.Accelerometer_X + g_ax_offset, g_min_ax, g_max_ax) / (0.5*(g_max_ax - g_min_ax)); // Angle
-    float ay = limit(-g_dev1.Accelerometer_Y + g_ay_offset, g_min_ay, g_max_ay) / (0.5*(g_max_ay - g_min_ay));
+    float ax = g_dev1.Accelerometer_X + g_ax_offset;
+    float ay = g_dev1.Accelerometer_Y + g_ay_offset;
     float az = atan2(g_my, g_mx);
-    float gx = limit(-g_dev1.Gyroscope_X + g_gx_offset, g_min_gx, g_max_gx) / (0.5*(g_max_gx - g_min_gx)); // Velocity
-    float gy = limit(g_dev1.Gyroscope_Y + g_gy_offset, g_min_gy, g_max_gy) / (0.5*(g_max_gy - g_min_gy));
-    float gz = limit(-g_dev1.Gyroscope_Z + g_gz_offset, g_min_gz, g_max_gz) / (0.5*(g_max_gz - g_min_gz));
+    float gx = g_dev1.Gyroscope_X + g_gx_offset;
+    float gy = g_dev1.Gyroscope_Y + g_gy_offset;
+    float gz = g_dev1.Gyroscope_Z + g_gz_offset;
 
     // Remove noise
     g_ax = SimpleKalmanFilter_updateEstimate(&g_filters[0], ax);
@@ -391,10 +447,18 @@ void TIM3_IRQHandler(void)
     g_gz = SimpleKalmanFilter_updateEstimate(&g_filters[5], gz);
   }
 
+  calc_angles();
+
+  g_angle_x = limit(g_angle_x, -90, 90) / 90;
+  g_angle_y = limit(g_angle_y, -90, 90) / 90;
+  g_gyro_x = limit(g_gx, -2000, 2000) / 2000;
+  g_gyro_y = limit(g_gy, -2000, 2000) / 2000;
+  g_gyro_z = limit(g_gz, -2000, 2000) / 2000;
+
   // Control pitch, roll, yaw using offsets
-  g_ax += -0.02*g_pitch;
-  g_ay += 0.02*g_roll;
-  g_az += -0.02*g_yaw;
+  float angle_x = g_angle_x - 0.02*g_pitch;
+  float angle_y = g_angle_y + 0.02*g_roll;
+  float angle_z = limit(g_angle_z, -90, 90) / 90 - 0.02*g_yaw;
 
   if (g_thrust <= -99 && g_yaw <= -99
       && g_pitch <= -99 && g_roll >= 98) {
@@ -451,27 +515,27 @@ void TIM3_IRQHandler(void)
 
       break;
     case testing_2:
-      g_P_pitch = g_ax*P_PITCH_GAIN;
-      g_I_pitch += g_ax*I_PITCH_GAIN;
+      g_P_pitch = angle_x*P_PITCH_GAIN;
+      g_I_pitch += angle_x*I_PITCH_GAIN;
       g_I_pitch = limit(g_I_pitch, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_pitch = g_gy*D_PITCH_GAIN;
+      g_D_pitch = g_gyro_y*D_PITCH_GAIN;
 
-      g_P_roll = g_ay*P_ROLL_GAIN;
-      g_I_roll += g_ay*I_ROLL_GAIN;
+      g_P_roll = angle_y*P_ROLL_GAIN;
+      g_I_roll += angle_y*I_ROLL_GAIN;
       g_I_roll = limit(g_I_roll, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_roll = g_gx*D_ROLL_GAIN;
+      g_D_roll = g_gyro_x*D_ROLL_GAIN;
 
-      g_P_yaw = g_az*P_YAW_GAIN;
-      g_I_yaw += g_az*I_YAW_GAIN;
+      g_P_yaw = angle_z*P_YAW_GAIN;
+      g_I_yaw += angle_z*I_YAW_GAIN;
       g_I_yaw = limit(g_I_yaw, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_yaw = g_gz*D_YAW_GAIN;
+      g_D_yaw = g_gyro_z*D_YAW_GAIN;
 
       int thrust = MIN_SPEED + 2*g_thrust;
 
-      g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
       g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
@@ -488,12 +552,12 @@ void TIM3_IRQHandler(void)
   }
 
 #if MONITOR == 1
-  monitor[0] = g_ax;
-  monitor[1] = g_ay;
-  monitor[2] = g_az;
-  monitor[3] = g_gx;
-  monitor[4] = g_gy;
-  monitor[5] = g_gz;
+  monitor[0] = angle_x;
+  monitor[1] = angle_y;
+  monitor[2] = angle_z;
+  monitor[3] = g_gyro_x;
+  monitor[4] = g_gyro_y;
+  monitor[5] = g_gyro_z;
 #endif
 
 #if MONITOR == 2
@@ -511,10 +575,10 @@ void TIM3_IRQHandler(void)
 #if MONITOR == 3
   monitor[0] = g_sig1;
   monitor[1] = g_sig2;
-  monitor[2] = MIN_SPEED - 20;
+  monitor[2] = g_sig1 > g_sig2 ? g_sig2 : g_sig1;
   monitor[3] = g_sig3;
   monitor[4] = g_sig4;
-  monitor[5] = MIN_SPEED - 20;
+  monitor[5] = g_sig3 > g_sig4 ? g_sig4 : g_sig3;
 #endif
 
   /* USER CODE END TIM3_IRQn 0 */
