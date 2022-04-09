@@ -59,7 +59,7 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
-kalman_filter g_filters[14];
+kalman_filter g_filters[16];
 
 SD_MPU6050 g_dev1;
 
@@ -168,15 +168,21 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  flash(2, 3);
+  // Turn off all lights
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
 
   // Gyro, accel
-  SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[1], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[2], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 0.5); // Accel x
+  SimpleKalmanFilter_Init(&g_filters[1], 2, 2, 0.5); // Accel y
+  SimpleKalmanFilter_Init(&g_filters[2], 2, 2, 0.5); // Accel z
+  SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 0.5); // Gyro x
+  SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 0.5); // Gyro y
+  SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 0.5); // Gyro z
+  SimpleKalmanFilter_Init(&g_filters[6], 2, 2, 0.01); // Thrust
+  SimpleKalmanFilter_Init(&g_filters[7], 2, 2, 0.01); // Yaw
+  SimpleKalmanFilter_Init(&g_filters[8], 2, 2, 0.01); // Pitch
+  SimpleKalmanFilter_Init(&g_filters[9], 2, 2, 0.01); // Roll
 
   // Initialize GY-86
   SD_MPU6050_Init(
@@ -186,27 +192,28 @@ int main(void)
       SD_MPU6050_Accelerometer_16G,
       SD_MPU6050_Gyroscope_2000s);
   SD_MPU6050_SetDataRate(&hi2c1, &g_dev1, SD_MPU6050_DataRate_8KHz);
-  flash(1, 2);
+  flash(1, 5);
 
   begin(&g_dev2, MS5611_HIGH_RES); // MS5611 sensor init
   Set_config(&hi2c1, &g_dev1, MPU6050_DLPF_BW_260); // LPF mpu
   SetAuxbus(&hi2c1, &g_dev1); // Enable MPU6050 AUX bus to interface with HMC5883l
   HMC5883L_initialize(HMC5883L_GAIN_1370, HMC5883L_RATE_75, HMC5883L_MODE_CONTINUOUS);
-  flash(1, 2);
+  flash(1, 5);
+
+  // Remote control
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_4);
 
   // Init PWM timer
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-  flash(1, 2);
 
   // Run timers
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
-  flash(1, 2);
-
-  flash(2, 3);
 
   /* USER CODE END 2 */
 
@@ -400,7 +407,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 20;
+  htim1.Init.Prescaler = 21;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 5000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -485,7 +492,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 20;
+  htim2.Init.Prescaler = 21;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 5000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -547,7 +554,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 83;
+  htim3.Init.Prescaler = 84;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 5000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -609,9 +616,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 83;
+  htim4.Init.Prescaler = 420;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 20000;
+  htim4.Init.Period = 4200;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -633,7 +640,7 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
   sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
   sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
   sConfigIC.ICFilter = 0;
@@ -769,6 +776,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+
   }
   /* USER CODE END Error_Handler_Debug */
 }

@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
 
-#define D2R 0.01745329252 //Degree To Radian Constant
+#define D2R 0.01745329252 // Degree To Radian Constant
 
-#define MPU6050_ADDR 0xD0 //Already Left Shifted
+#define MPU6050_ADDR 0xD0 // Already Left Shifted
 #define CONFIG_REG 0x1A
 #define GYRO_CONFIG_REG 0x1B
 #define ACCEL_CONFIG_REG 0x1C
@@ -38,64 +38,72 @@
 #define HMC5883L_REG_IDENT_C          (0x0C)
 
 // MPU6050 structure
-typedef struct _MPU6050_t
-{
-    int16_t Accel_X_RAW;
-    int16_t Accel_Y_RAW;
-    int16_t Accel_Z_RAW;
+typedef struct {
+  I2C_HandleTypeDef *I2Cx;
+  uint8_t rx_buf[20];
+  uint8_t rx;
+  uint8_t tx;
+  float MPU6050_Gyro_LSB;
+  float MPU6050_Acc_LSB;
 
-    float Ax;
-    float Ay;
-    float Az;
+  int16_t Accel_X_RAW;
+  int16_t Accel_Y_RAW;
+  int16_t Accel_Z_RAW;
 
-    int16_t Gyro_X_RAW;
-    int16_t Gyro_Y_RAW;
-    int16_t Gyro_Z_RAW;
+  float Ax;
+  float Ay;
+  float Az;
 
-    int16_t Gyro_X_Offset;
-    int16_t Gyro_Y_Offset;
-    int16_t Gyro_Z_Offset;
+  int16_t Gyro_X_RAW;
+  int16_t Gyro_Y_RAW;
+  int16_t Gyro_Z_RAW;
 
-    float Gx;
-    float Gy;
-    float Gz;
+  int16_t Gyro_X_Offset;
+  int16_t Gyro_Y_Offset;
+  int16_t Gyro_Z_Offset;
 
-    float Temperature;
+  float Gx;
+  float Gy;
+  float Gz;
 
-    int16_t Mag_X_RAW;
-    int16_t Mag_Y_RAW;
-    int16_t Mag_Z_RAW;
+  float Temperature;
 
-    int16_t Mag_X_Min;
-	int16_t Mag_Y_Min;
-	int16_t Mag_Z_Min;
+  int16_t Mag_X_RAW;
+  int16_t Mag_Y_RAW;
+  int16_t Mag_Z_RAW;
 
-    int16_t Mag_X_Max;
-	int16_t Mag_Y_Max;
-	int16_t Mag_Z_Max;
+  int16_t Mag_X_Min;
+  int16_t Mag_Y_Min;
+  int16_t Mag_Z_Min;
 
-    int16_t Mag_X_Offset;
-	int16_t Mag_Y_Offset;
-	int16_t Mag_Z_Offset;
+  int16_t Mag_X_Max;
+  int16_t Mag_Y_Max;
+  int16_t Mag_Z_Max;
 
-    float Mx;
-    float My;
-    float Mz;
+  int16_t Mag_X_Offset;
+  int16_t Mag_Y_Offset;
+  int16_t Mag_Z_Offset;
 
-}MPU6050_t;
+  float Mx;
+  float My;
+  float Mz;
 
-uint8_t MPU6050_Init(I2C_HandleTypeDef *I2Cx, uint8_t Gyro_FS, uint8_t ACC_FS, uint8_t DLPF_CFG);
+} MPU6050_t;
 
-void MPU6050_Bypass(I2C_HandleTypeDef *I2Cx);
-void MPU6050_Master(I2C_HandleTypeDef *I2Cx);
-void HMC5883L_Setup(I2C_HandleTypeDef *I2Cx);
-void MPU6050_Slave_Read(I2C_HandleTypeDef *I2Cx);
+uint8_t MPU6050_Init(MPU6050_t *mpu6050, I2C_HandleTypeDef *I2Cx,
+    uint8_t Gyro_FS, uint8_t Acc_FS, uint8_t DLPF_CFG);
 
-uint8_t MPU6050_DataReady(I2C_HandleTypeDef *I2Cx);
+uint8_t MPU6050_Bypass(MPU6050_t *mpu6050);
+uint8_t MPU6050_Master(MPU6050_t *mpu6050);
+uint8_t HMC5883L_Setup(MPU6050_t *mpu6050);
+uint8_t MPU6050_Slave_Read(MPU6050_t *mpu6050);
 
-void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct);
-void MPU6050_Read_All_DMA(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct);
-void MPU6050_Parsing(MPU6050_t *DataStruct);
-void MPU6050_Parsing_NoOffest(MPU6050_t *DataStruct);
+uint8_t MPU6050_DataReady(MPU6050_t *mpu6050);
+
+uint8_t MPU6050_Read(MPU6050_t *mpu6050);
+HAL_StatusTypeDef MPU6050_Read_All(MPU6050_t *mpu6050);
+HAL_StatusTypeDef MPU6050_Read_All_DMA(MPU6050_t *mpu6050);
+void MPU6050_Parsing(MPU6050_t *mpu6050);
+void MPU6050_Parsing_NoOffset(MPU6050_t *mpu6050);
 
 #endif /* MPU6050_H */

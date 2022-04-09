@@ -286,9 +286,9 @@ void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
 
-//  // Read MPU6050 values
-//  MPU6050_Read_All(&hi2c1, &g_dev1);
-//  MPU6050_Parsing_NoOffest(&g_dev1);
+  // Read MPU6050 values
+//  MPU6050_Read(&g_dev1);
+//  MPU6050_Parsing_NoOffset(&g_dev1);
 //  float gx = -g_dev1.Gx + g_gx_offset; // Velocity
 //  float gy = g_dev1.Gy + g_gy_offset;
 //  float gz = -g_dev1.Gz + g_gz_offset;
@@ -404,9 +404,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   g_yaw = g_control[(g_control_1st_idx+3)%5]-100;
 
   // Update monitor
-  monitor(g_ax, g_gx, 0,
-      g_ay, g_gy, 0,
-      g_az, g_gz, 0);
+//  monitor(g_ax, g_gx, 0,
+//      g_ay, g_gy, 0,
+//      g_dev1.Mag_X_RAW, g_dev1.Mag_Y_RAW, g_dev1.Mag_Z_RAW);
 //  monitor(g_thrust, g_yaw, 0,
 //      g_pitch, g_roll, 0,
 //      0, 0, 0);
@@ -416,7 +416,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 //  monitor(g_sig1, g_sig2, MIN_SPEED,
 //      g_sig3, g_sig4, MIN_SPEED,
 //      0, 0, 0);
-
 }
 
 /* USER CODE END 1 */

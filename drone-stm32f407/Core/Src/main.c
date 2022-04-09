@@ -84,13 +84,13 @@ static void flash(uint8_t led, uint8_t count) {
   for (int i = 0; i < count; i++) {
     if (led == 1) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
     if (led == 2) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
-    HAL_Delay(100);
+    HAL_Delay(50);
     if (led == 1) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
     if (led == 2) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
-    HAL_Delay(100);
+    HAL_Delay(50);
   }
 
-  HAL_Delay(200);
+  HAL_Delay(100);
 }
 
 // Monitor console
@@ -154,37 +154,49 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
-  flash(1, 3);
+  flash(1, 2);
 
   // Initialise Kalman filters
-  SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 0.01);
-  SimpleKalmanFilter_Init(&g_filters[1], 2, 2, 0.01);
-  SimpleKalmanFilter_Init(&g_filters[2], 2, 2, 0.01);
-  SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 0.01);
-  SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 0.01);
-  SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 0.01);
+  SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[1], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[2], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
 
   // MPU6050 + HMC5883L
-  MPU6050_Init(&hi2c1, 2, 2, 5);
-  MPU6050_Bypass(&hi2c1);
-  HMC5883L_Setup(&hi2c1);
-  MPU6050_Master(&hi2c1);
-  MPU6050_Slave_Read(&hi2c1);
-  flash(1, 2);
+  MPU6050_t g_dev1;
+
+  while (MPU6050_Init(&g_dev1, &hi2c1, 3, 3, 5) != 0)
+    flash(1, 5);
+
+  while (MPU6050_Bypass(&g_dev1) != 0)
+    flash(1, 10);
+
+  while (HMC5883L_Setup(&g_dev1) != 0)
+    flash(1, 15);
+
+  while (MPU6050_Master(&g_dev1) != 0)
+    flash(1, 20);
+
+  while (MPU6050_Slave_Read(&g_dev1) != 0)
+    flash(1, 25);
+
+  flash(1, 3);
 
   // Initialise motor PWM timer
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-  flash(1, 2);
+  flash(1, 3);
 
   // Run timers
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
-  flash(1, 2);
-
   flash(1, 3);
+
+  flash(1, 2);
 
   /* USER CODE END 2 */
 
@@ -196,6 +208,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     HAL_UART_Receive_IT(&huart1, g_control, 5);
+
+    HAL_Delay(100);
+    if (MPU6050_Read_All(&g_dev1) != 0) continue;
+    MPU6050_Parsing_NoOffset(&g_dev1);
+
+    monitor(g_dev1.Accel_X_RAW, g_dev1.Accel_Y_RAW, g_dev1.Accel_Z_RAW,
+        g_dev1.Gyro_X_RAW, g_dev1.Gyro_Y_RAW, g_dev1.Gyro_Z_RAW,
+        g_dev1.Mag_X_RAW, g_dev1.Mag_Y_RAW, g_dev1.Mag_Z_RAW);
   }
   /* USER CODE END 3 */
 }
@@ -338,9 +358,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 83;
+  htim1.Init.Prescaler = 20;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 10000;
+  htim1.Init.Period = 5000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -424,9 +444,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 83;
+  htim2.Init.Prescaler = 20;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10000;
+  htim2.Init.Period = 5000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -494,9 +514,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 1999;
+  htim3.Init.Prescaler = 83;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000;
+  htim3.Init.Period = 5000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -539,9 +559,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1999;
+  htim4.Init.Prescaler = 83;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 1000;
+  htim4.Init.Period = 20000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

@@ -33,6 +33,7 @@ THE SOFTWARE.
 */
 
 #include "hmc5883.h"
+
 extern I2C_HandleTypeDef hi2c1;
 static uint8_t devAddr = HMC5883L_DEFAULT_ADDRESS;
 
@@ -60,35 +61,33 @@ uint8_t mode;
  * a lot of -4096 values (see the datasheet for mor information).
  */
 void HMC5883L_initialize(uint8_t Gain, uint8_t rate, uint8_t mode) {
-    devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		HAL_StatusTypeDef status;
-		do {
-		  status = HAL_I2C_IsDeviceReady(&hi2c1, devAddr, 3, 5);
-		  debug(1, status);
-		}
-		while (status != HAL_OK);
-    // write CONFIG_A register
-		HAL_Delay(10);
-		buffer[0] = HMC5883L_RA_CONFIG_A;
-		buffer[1]	= rate;
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  HAL_StatusTypeDef status;
+  do {
+    status = HAL_I2C_IsDeviceReady( & hi2c1, devAddr, 3, 5);
+  }
+  while (status != HAL_OK);
+  // write CONFIG_A register
+  HAL_Delay(10);
+  buffer[0] = HMC5883L_RA_CONFIG_A;
+  buffer[1] = rate;
 
-		do {
-		  status = HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 2, 10);
-		  debug(1, status);
-		}
-		while (status != HAL_OK);
-    // write CONFIG_B register
-    HMC5883L_setGain(Gain);
-		// write MODE register
-    HMC5883L_setMode(mode);
+  do {
+    status = HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 2, 10);
+  }
+  while (status != HAL_OK);
+  // write CONFIG_B register
+  HMC5883L_setGain(Gain);
+  // write MODE register
+  HMC5883L_setMode(mode);
 }
 /** Verify the I2C connection.
  * Make sure the device is connected and responds as expected.
  * @return True if connection is valid, false otherwise
  */
 bool HMC5883L_testConnection(void) {
-    return false;
+  return false;
 }
 // CONFIG_A register
 /** Get number of samples averaged per measurement.
@@ -99,8 +98,8 @@ bool HMC5883L_testConnection(void) {
  * @see HMC5883L_CRA_AVERAGE_LENGTH
  */
 uint8_t HMC5883L_getSampleAveraging(void) {
-    //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_AVERAGE_BIT, HMC5883L_CRA_AVERAGE_LENGTH, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_AVERAGE_BIT, HMC5883L_CRA_AVERAGE_LENGTH, buffer);
+  return 0; //buffer[0];
 }
 /** Set number of samples averaged per measurement.
  * @param averaging New samples averaged per measurement setting(0-3 for 1/2/4/8 respectively)
@@ -109,7 +108,7 @@ uint8_t HMC5883L_getSampleAveraging(void) {
  * @see HMC5883L_CRA_AVERAGE_LENGTH
  */
 void HMC5883L_setSampleAveraging(uint8_t averaging) {
-    //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_AVERAGE_BIT, HMC5883L_CRA_AVERAGE_LENGTH, averaging);
+  //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_AVERAGE_BIT, HMC5883L_CRA_AVERAGE_LENGTH, averaging);
 }
 /** Get data output rate value.
  * The Table below shows all selectable output rates in continuous measurement
@@ -135,8 +134,8 @@ void HMC5883L_setSampleAveraging(uint8_t averaging) {
  * @see HMC5883L_CRA_RATE_LENGTH
  */
 uint8_t HMC5883L_getDataRate(void) {
-    //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_RATE_BIT, HMC5883L_CRA_RATE_LENGTH, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_RATE_BIT, HMC5883L_CRA_RATE_LENGTH, buffer);
+  return 0; //buffer[0];
 }
 /** Set data output rate value.
  * @param rate Rate of data output to registers
@@ -147,7 +146,7 @@ uint8_t HMC5883L_getDataRate(void) {
  * @see HMC5883L_CRA_RATE_LENGTH
  */
 void HMC5883L_setDataRate(uint8_t rate) {
-    //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_RATE_BIT, HMC5883L_CRA_RATE_LENGTH, rate);
+  //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_RATE_BIT, HMC5883L_CRA_RATE_LENGTH, rate);
 }
 /** Get measurement bias value.
  * @return Current bias value (0-2 for normal/positive/negative respectively)
@@ -157,8 +156,8 @@ void HMC5883L_setDataRate(uint8_t rate) {
  * @see HMC5883L_CRA_BIAS_LENGTH
  */
 uint8_t HMC5883L_getMeasurementBias(void) {
-    //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_BIAS_BIT, HMC5883L_CRA_BIAS_LENGTH, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_BIAS_BIT, HMC5883L_CRA_BIAS_LENGTH, buffer);
+  return 0; //buffer[0];
 }
 /** Set measurement bias value.
  * @param bias New bias value (0-2 for normal/positive/negative respectively)
@@ -168,7 +167,7 @@ uint8_t HMC5883L_getMeasurementBias(void) {
  * @see HMC5883L_CRA_BIAS_LENGTH
  */
 void HMC5883L_setMeasurementBias(uint8_t bias) {
-    //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_BIAS_BIT, HMC5883L_CRA_BIAS_LENGTH, bias);
+  //I2Cdev_writeBits(devAddr, HMC5883L_RA_CONFIG_A, HMC5883L_CRA_BIAS_BIT, HMC5883L_CRA_BIAS_LENGTH, bias);
 }
 
 // CONFIG_B register
@@ -197,8 +196,8 @@ void HMC5883L_setMeasurementBias(uint8_t bias) {
  * @see HMC5883L_CRB_GAIN_LENGTH
  */
 uint8_t HMC5883L_getGain(void) {
-    //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_B, HMC5883L_CRB_GAIN_BIT, HMC5883L_CRB_GAIN_LENGTH, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBits(devAddr, HMC5883L_RA_CONFIG_B, HMC5883L_CRB_GAIN_BIT, HMC5883L_CRB_GAIN_LENGTH, buffer);
+  return 0; //buffer[0];
 }
 /** Set magnetic field gain value.
  * @param gain New magnetic field gain value
@@ -208,15 +207,15 @@ uint8_t HMC5883L_getGain(void) {
  * @see HMC5883L_CRB_GAIN_LENGTH
  */
 void HMC5883L_setGain(uint8_t gain) {
-    // use this method to guarantee that bits 4-0 are set to zero, which is a
-    // requirement specified in the datasheet; it's actually more efficient than
-    // using the I2Cdev.writeBits method
-    //I2Cdev_writeByte(devAddr, HMC5883L_RA_CONFIG_B, gain << (HMC5883L_CRB_GAIN_BIT - HMC5883L_CRB_GAIN_LENGTH + 1));
-		devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_RA_CONFIG_B;
-		buffer[1]	= gain;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 2, 10) != HAL_OK){}
+  // use this method to guarantee that bits 4-0 are set to zero, which is a
+  // requirement specified in the datasheet; it's actually more efficient than
+  // using the I2Cdev.writeBits method
+  //I2Cdev_writeByte(devAddr, HMC5883L_RA_CONFIG_B, gain << (HMC5883L_CRB_GAIN_BIT - HMC5883L_CRB_GAIN_LENGTH + 1));
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_RA_CONFIG_B;
+  buffer[1] = gain;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 2, 10) != HAL_OK) {}
 }
 // MODE register
 /** Get measurement mode.
@@ -242,8 +241,8 @@ void HMC5883L_setGain(uint8_t gain) {
  * @see HMC5883L_MODEREG_LENGTH
  */
 uint8_t HMC5883L_getMode(void) {
-    //I2Cdev_readBits(devAddr, HMC5883L_RA_MODE, HMC5883L_MODEREG_BIT, HMC5883L_MODEREG_LENGTH, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBits(devAddr, HMC5883L_RA_MODE, HMC5883L_MODEREG_BIT, HMC5883L_MODEREG_LENGTH, buffer);
+  return 0; //buffer[0];
 }
 /** Set measurement mode.
  * @param newMode New measurement mode
@@ -256,16 +255,16 @@ uint8_t HMC5883L_getMode(void) {
  * @see HMC5883L_MODEREG_LENGTH
  */
 void HMC5883L_setMode(uint8_t newMode) {
-    // use this method to guarantee that bits 7-2 are set to zero, which is a
-    // requirement specified in the datasheet; it's actually more efficient than
-    // using the I2Cdev.writeBits method
-    //I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, newMode << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
-		devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_RA_MODE;
-		buffer[1]	= newMode; // + 0x80;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 2, 10) != HAL_OK){}
-    mode = newMode; // track to tell if we have to clear bit 7 after a read
+  // use this method to guarantee that bits 7-2 are set to zero, which is a
+  // requirement specified in the datasheet; it's actually more efficient than
+  // using the I2Cdev.writeBits method
+  //I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, newMode << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_RA_MODE;
+  buffer[1] = newMode; // + 0x80;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 2, 10) != HAL_OK) {}
+  mode = newMode; // track to tell if we have to clear bit 7 after a read
 }
 
 // DATA* registers
@@ -281,53 +280,53 @@ void HMC5883L_setMode(uint8_t newMode) {
  * @param z 16-bit signed integer container for Z-axis heading
  * @see HMC5883L_RA_DATAX_H
  */
-void HMC5883L_getHeading(int16_t *x, int16_t *y, int16_t *z) {
-    //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
-    //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
-    devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[6];
-		buffer[0] = HMC5883L_RA_DATAX_H;
-		//buffer[1]	= 0x00;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 1) != HAL_OK){}
-			//HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 1);
-		while(HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) buffer, 6, 1) != HAL_OK){}
-			//HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) buffer, 6, 10);
-		*x = (((int16_t)buffer[0]) << 8) | buffer[1];
-    *y = (((int16_t)buffer[4]) << 8) | buffer[5];
-    *z = (((int16_t)buffer[2]) << 8) | buffer[3];
+void HMC5883L_getHeading(int16_t * x, int16_t * y, int16_t * z) {
+  //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
+  //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[6];
+  buffer[0] = HMC5883L_RA_DATAX_H;
+  //buffer[1]	= 0x00;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 1, 1) != HAL_OK) {}
+  //HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 1);
+  while (HAL_I2C_Master_Receive( & hi2c1, devAddr, (uint8_t * ) buffer, 6, 1) != HAL_OK) {}
+  //HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) buffer, 6, 10);
+  *x = (((int16_t) buffer[0]) << 8) | buffer[1];
+  *y = (((int16_t) buffer[4]) << 8) | buffer[5];
+  *z = (((int16_t) buffer[2]) << 8) | buffer[3];
 }
 /** Get X-axis heading measurement.
  * @return 16-bit signed integer with X-axis heading
  * @see HMC5883L_RA_DATAX_H
  */
 int16_t HMC5883L_getHeadingX(void) {
-    // each axis read requires that ALL axis registers be read, even if only
-    // one is used; this was not done ineffiently in the code by accident
-    //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
-    //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
-    return 0; //(((int16_t)buffer[0]) << 8) | buffer[1];
+  // each axis read requires that ALL axis registers be read, even if only
+  // one is used; this was not done ineffiently in the code by accident
+  //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
+  //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
+  return 0; //(((int16_t)buffer[0]) << 8) | buffer[1];
 }
 /** Get Y-axis heading measurement.
  * @return 16-bit signed integer with Y-axis heading
  * @see HMC5883L_RA_DATAY_H
  */
 int16_t HMC5883L_getHeadingY(void) {
-    // each axis read requires that ALL axis registers be read, even if only
-    // one is used; this was not done ineffiently in the code by accident
-    //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
-    //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
-    return 0; //(((int16_t)buffer[4]) << 8) | buffer[5];
+  // each axis read requires that ALL axis registers be read, even if only
+  // one is used; this was not done ineffiently in the code by accident
+  //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
+  //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
+  return 0; //(((int16_t)buffer[4]) << 8) | buffer[5];
 }
 /** Get Z-axis heading measurement.
  * @return 16-bit signed integer with Z-axis heading
  * @see HMC5883L_RA_DATAZ_H
  */
 int16_t HMC5883L_getHeadingZ(void) {
-    // each axis read requires that ALL axis registers be read, even if only
-    // one is used; this was not done ineffiently in the code by accident
-    //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
-    //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
-    return 0; //(((int16_t)buffer[2]) << 8) | buffer[3];
+  // each axis read requires that ALL axis registers be read, even if only
+  // one is used; this was not done ineffiently in the code by accident
+  //I2Cdev_readBytes(devAddr, HMC5883L_RA_DATAX_H, 6, buffer);
+  //if (mode == HMC5883L_MODE_SINGLE) I2Cdev_writeByte(devAddr, HMC5883L_RA_MODE, HMC5883L_MODE_SINGLE << (HMC5883L_MODEREG_BIT - HMC5883L_MODEREG_LENGTH + 1));
+  return 0; //(((int16_t)buffer[2]) << 8) | buffer[3];
 }
 
 // STATUS register
@@ -344,8 +343,8 @@ int16_t HMC5883L_getHeadingZ(void) {
  * @see HMC5883L_STATUS_LOCK_BIT
  */
 bool HMC5883L_getLockStatus(void) {
-    //I2Cdev_readBit(devAddr, HMC5883L_RA_STATUS, HMC5883L_STATUS_LOCK_BIT, buffer);
-    return 0; //buffer[0];
+  //I2Cdev_readBit(devAddr, HMC5883L_RA_STATUS, HMC5883L_STATUS_LOCK_BIT, buffer);
+  return 0; //buffer[0];
 }
 /** Get data ready status.
  * This bit is set when data is written to all six data registers, and cleared
@@ -358,53 +357,53 @@ bool HMC5883L_getLockStatus(void) {
  * @see HMC5883L_STATUS_READY_BIT
  */
 bool HMC5883L_getReadyStatus(void) {
-    //I2Cdev_readBit(devAddr, HMC5883L_RA_STATUS, HMC5883L_STATUS_READY_BIT, buffer);
-    devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_STATUS_READY_BIT;
-		buffer[1]	= 0x00;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 10) != HAL_OK){}
-		while(HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) &buffer[1], 1, 10) != HAL_OK){}
-    return buffer[1];
+  //I2Cdev_readBit(devAddr, HMC5883L_RA_STATUS, HMC5883L_STATUS_READY_BIT, buffer);
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_STATUS_READY_BIT;
+  buffer[1] = 0x00;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 1, 10) != HAL_OK) {}
+  while (HAL_I2C_Master_Receive( & hi2c1, devAddr, (uint8_t * ) & buffer[1], 1, 10) != HAL_OK) {}
+  return buffer[1];
 }
 // ID_* registers
 /** Get identification byte A
  * @return ID_A byte (should be 01001000, ASCII value 'H')
  */
 uint8_t HMC5883L_getIDA(void) {
-    //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_A, buffer);
-		devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_RA_ID_A;
-		buffer[1]	= 0x00;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 10) != HAL_OK){}
-		while(HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) &buffer[1], 1, 10) != HAL_OK){}
-    return buffer[1];
+  //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_A, buffer);
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_RA_ID_A;
+  buffer[1] = 0x00;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 1, 10) != HAL_OK) {}
+  while (HAL_I2C_Master_Receive( & hi2c1, devAddr, (uint8_t * ) & buffer[1], 1, 10) != HAL_OK) {}
+  return buffer[1];
 }
 /** Get identification byte B
  * @return ID_A byte (should be 00110100, ASCII value '4')
  */
 uint8_t HMC5883L_getIDB(void) {
-    //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_B, buffer);
-    devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_RA_ID_B;
-		buffer[1]	= 0x00;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 10) != HAL_OK){}
-		while(HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) &buffer[1], 1, 10) != HAL_OK){}
-    return buffer[1];
+  //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_B, buffer);
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_RA_ID_B;
+  buffer[1] = 0x00;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 1, 10) != HAL_OK) {}
+  while (HAL_I2C_Master_Receive( & hi2c1, devAddr, (uint8_t * ) & buffer[1], 1, 10) != HAL_OK) {}
+  return buffer[1];
 }
 /** Get identification byte C
  * @return ID_A byte (should be 00110011, ASCII value '3')
  */
 uint8_t HMC5883L_getIDC(void) {
-    //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_C, buffer);
-    devAddr = HMC5883L_DEFAULT_ADDRESS;
-		uint8_t buffer[2];
-		buffer[0] = HMC5883L_RA_ID_C;
-		buffer[1]	= 0x00;
-		while(HAL_I2C_Master_Transmit(&hi2c1, devAddr, (uint8_t*) buffer, 1, 10) != HAL_OK){}
-		while(HAL_I2C_Master_Receive(&hi2c1, devAddr, (uint8_t*) &buffer[1], 1, 10) != HAL_OK){}
-    return buffer[1];
+  //I2Cdev_readByte(devAddr, HMC5883L_RA_ID_C, buffer);
+  devAddr = HMC5883L_DEFAULT_ADDRESS;
+  uint8_t buffer[2];
+  buffer[0] = HMC5883L_RA_ID_C;
+  buffer[1] = 0x00;
+  while (HAL_I2C_Master_Transmit( & hi2c1, devAddr, (uint8_t * ) buffer, 1, 10) != HAL_OK) {}
+  while (HAL_I2C_Master_Receive( & hi2c1, devAddr, (uint8_t * ) & buffer[1], 1, 10) != HAL_OK) {}
+  return buffer[1];
 }
 //////////////////////////////////////////////////////////
