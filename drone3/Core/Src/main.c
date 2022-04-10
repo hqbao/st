@@ -67,7 +67,7 @@ MS5611 g_dev2;
 
 // Remote control
 int g_conn_lost_counter = -2147483648;
-uint8_t g_control[5] = {0, 0, 0, 0, 0};
+uint8_t g_control[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Monitor console
 char g_console_msg[256] = {0};
@@ -226,7 +226,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     // Receive data and callback HAL_UART_RxCpltCallback
-    HAL_UART_Receive_IT(&huart1, g_control, 5);
+    HAL_UART_Receive_IT(&huart1, g_control, 10);
   }
   /* USER CODE END 3 */
 }
