@@ -175,7 +175,10 @@ int main(void)
   SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 1);
   SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
   SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[6], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[6], 2, 2, 0.01); // Thrust
+  SimpleKalmanFilter_Init(&g_filters[7], 2, 2, 0.01); // Yaw
+  SimpleKalmanFilter_Init(&g_filters[8], 2, 2, 0.01); // Pitch
+  SimpleKalmanFilter_Init(&g_filters[9], 2, 2, 0.01); // Roll
 
   // Init gy-86
   while (1) {
@@ -196,6 +199,12 @@ int main(void)
     if (error == 0) break;
     flash(2, error);
   }
+
+  // Remote control
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_4);
 
   // Initialise motor PWM timer
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);

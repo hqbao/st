@@ -75,7 +75,7 @@ typedef enum {
 
 #define ACCUMULATION_TIME 0.07 // 0.005 = 1/FREQ
 
-#define MAX_LOST_CONN_COUNTER 50
+#define MAX_LOST_CONN_COUNTER 100
 
 #define FREQ 200
 #define SSF_GYRO 65.5
@@ -506,7 +506,7 @@ void TIM3_IRQHandler(void)
       g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_INTEGRAL, MAX_INTEGRAL);
       g_D_yaw = g_gyro_z*g_D_yaw_gain;
 
-      int thrust = MIN_SPEED + 3*g_thrust;
+      int thrust = MIN_SPEED + 3 + g_thrust*3;
 
       g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
@@ -531,9 +531,9 @@ void TIM3_IRQHandler(void)
   monitor[0] = angle_x;
   monitor[1] = angle_y;
   monitor[2] = angle_z;
-  monitor[3] = g_gyro_x;
-  monitor[4] = g_gyro_y;
-  monitor[5] = g_gyro_z;
+  monitor[3] = g_gx;
+  monitor[4] = g_gy;
+  monitor[5] = g_gz;
   monitor[6] = g_altitude;
   monitor[7] = g_altitude;
   monitor[8] = g_altitude;
@@ -627,7 +627,7 @@ void USART1_IRQHandler(void)
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
   // To know whether this timer is hanging
-//  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
@@ -635,7 +635,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   g_conn_lost_counter = 0;
 
   // To know whether this timer is hanging
-//  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
 
   // Serialise control values
   static uint8_t g_control_1st_idx = 0;
