@@ -191,12 +191,10 @@ int main(void)
   while (1) {
     int error = MS5611_init(
         &g_ms5611,
-        &hi2c1,
-        0x77);
+        &hi2c1);
     if (error == 0) break;
     flash(2, error);
   }
-  MS5611_set_oversampling(&g_ms5611, OSR_ULTRA_HIGH);
 
   // Initialise motor PWM timer
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -205,7 +203,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
   // Run timers
-  HAL_TIM_Base_Start_IT(&htim3);
+//  HAL_TIM_Base_Start_IT(&htim3);
 
   /* USER CODE END 2 */
 
@@ -216,20 +214,36 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_UART_Receive_IT(&huart1, g_control, 10);
+//    HAL_UART_Receive_IT(&huart1, g_control, 10);
 
-    if (MS5611_read(&g_ms5611) != 0) {
-      flash(2, 1);
-    }
+    MS5611_req_temperature(&g_ms5611, OSR_4096);
+    HAL_Delay(10);
 
-    float tem = MS5611_getTemperature(&g_ms5611);
-    float psr = MS5611_getPressure(&g_ms5611);
-    monitor[0] = tem;
-    monitor[1] = tem;
-    monitor[2] = tem;
-    monitor[3] = psr;
-    monitor[4] = psr;
-    monitor[5] = psr;
+    MS5611_read_temperature(&g_ms5611);
+    MS5611_calc_temperature(&g_ms5611);
+    MS5611_req_pressure(&g_ms5611, OSR_4096);
+    HAL_Delay(10);
+
+    MS5611_read_pressure(&g_ms5611);
+    MS5611_calc_pressure(&g_ms5611);
+    HAL_Delay(10);
+
+    float temperature = (float)g_ms5611.TEMP/100.f;
+    float pressure = (float)g_ms5611.P/100.f;
+    float altitude = MS5611_get_altitude((float)g_ms5611.P/100.f, (float)g_ms5611.TEMP/100.f);
+    monitor[0] = temperature;
+    monitor[1] = temperature;
+    monitor[2] = temperature;
+    monitor[3] = pressure;
+    monitor[4] = pressure;
+    monitor[5] = pressure;
+    monitor[6] = altitude;
+    monitor[7] = altitude;
+    monitor[8] = altitude;
+
+    send_data(monitor[0], monitor[1], monitor[2],
+        monitor[3], monitor[4], monitor[5],
+        monitor[6], monitor[7], monitor[8]);
   }
   /* USER CODE END 3 */
 }

@@ -46,7 +46,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 5 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
 
 /* USER CODE END PD */
 
