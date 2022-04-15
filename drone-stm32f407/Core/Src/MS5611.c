@@ -1,5 +1,6 @@
 #include "gy86.h"
 #include <math.h>
+#include "stm32f4xx_it.h"
 
 #define MS5611_ADDR 0x77
 #define CMD_RESET 0x1E
@@ -149,6 +150,37 @@ void MS5611_calc_pressure(ms5611_t *ms5611) {
 }
 
 #define SEA_PRESSURE 1013.25f
-float MS5611_get_altitude(float pressure, float temperature) {
-  return (1.0f - powf((pressure / SEA_PRESSURE), 0.1902226f)) * (temperature + 273.15f) / 0.0065f;
+void MS5611_calc_altitude(ms5611_t *ms5611) {
+  float temperature = (float)ms5611->TEMP/100.f;
+  float pressure = (float)ms5611->P/100.f;
+  ms5611->altitude = (1.0f - powf((pressure / SEA_PRESSURE), 0.1902226f)) * (temperature + 273.15f) / 0.0065f;
+}
+
+// Counter checks depend on timer frequency
+#define STEP_1 0
+#define STEP_2 2
+#define STEP_3 4
+#define STEP_END 6
+void MS5611_update(ms5611_t *ms5611) {
+  static int counter = 0;
+
+  if (counter == STEP_1) {
+    MS5611_req_temperature(ms5611, OSR_4096);
+  }
+
+  if (counter == STEP_2) {
+    MS5611_read_temperature(ms5611);
+    MS5611_calc_temperature(ms5611);
+    MS5611_req_pressure(ms5611, OSR_4096);
+  }
+
+  if (counter == STEP_3) {
+    MS5611_read_pressure(ms5611);
+    MS5611_calc_pressure(ms5611);
+    MS5611_calc_altitude(ms5611);
+  }
+
+  counter += 1;
+  if (counter >= STEP_END)
+    counter = 0;
 }

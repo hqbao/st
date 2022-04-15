@@ -47,7 +47,7 @@ typedef struct {
 int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
     uint8_t data_rate, MPU6050_Accelerometer accel, MPU6050_Gyroscope gyro);
 void MPU6050_update(mpu6050_t *mpu6050);
-void MPU6050_i2c_mem_read_cb_handler(mpu6050_t *mpu6050);
+void MPU6050_parse_6axis(mpu6050_t *mpu6050);
 
 typedef enum {
   OSR_256,
@@ -75,6 +75,8 @@ typedef struct {
   int64_t SENS;
   int32_t P;
 
+  float altitude;
+
   int OFF2;
   int T2;
   int SENS2;
@@ -91,6 +93,8 @@ void MS5611_read_pressure(ms5611_t *ms5611);
 void MS5611_calc_temperature(ms5611_t *ms5611);
 void MS5611_calc_pressure(ms5611_t *ms5611);
 
-float MS5611_get_altitude(float pressure, float temperature);
+void MS5611_calc_altitude(ms5611_t *ms5611);
+
+void MS5611_update(ms5611_t *ms5611);
 
 #endif /* GY86_H */

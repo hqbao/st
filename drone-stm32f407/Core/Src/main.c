@@ -175,6 +175,7 @@ int main(void)
   SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 1);
   SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
   SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
+  SimpleKalmanFilter_Init(&g_filters[6], 2, 2, 1);
 
   // Init gy-86
   while (1) {
@@ -202,8 +203,8 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
-  // Run timers
-//  HAL_TIM_Base_Start_IT(&htim3);
+  // Run timers after sensors have been setup
+  HAL_TIM_Base_Start_IT(&htim3);
 
   /* USER CODE END 2 */
 
@@ -214,36 +215,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//    HAL_UART_Receive_IT(&huart1, g_control, 10);
-
-    MS5611_req_temperature(&g_ms5611, OSR_4096);
-    HAL_Delay(10);
-
-    MS5611_read_temperature(&g_ms5611);
-    MS5611_calc_temperature(&g_ms5611);
-    MS5611_req_pressure(&g_ms5611, OSR_4096);
-    HAL_Delay(10);
-
-    MS5611_read_pressure(&g_ms5611);
-    MS5611_calc_pressure(&g_ms5611);
-    HAL_Delay(10);
-
-    float temperature = (float)g_ms5611.TEMP/100.f;
-    float pressure = (float)g_ms5611.P/100.f;
-    float altitude = MS5611_get_altitude((float)g_ms5611.P/100.f, (float)g_ms5611.TEMP/100.f);
-    monitor[0] = temperature;
-    monitor[1] = temperature;
-    monitor[2] = temperature;
-    monitor[3] = pressure;
-    monitor[4] = pressure;
-    monitor[5] = pressure;
-    monitor[6] = altitude;
-    monitor[7] = altitude;
-    monitor[8] = altitude;
-
-    send_data(monitor[0], monitor[1], monitor[2],
-        monitor[3], monitor[4], monitor[5],
-        monitor[6], monitor[7], monitor[8]);
+    HAL_UART_Receive_IT(&huart1, g_control, 10);
   }
   /* USER CODE END 3 */
 }

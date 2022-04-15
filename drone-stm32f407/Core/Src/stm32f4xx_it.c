@@ -125,7 +125,7 @@ float g_gx_offset = 288; // 288
 float g_gy_offset = -128; // -128
 float g_gz_offset = -32; // -32
 
-float g_altitude, g_altitude1, g_altitude2, g_altitude_offset;
+float g_altitude;
 
 // Fly mode
 FlyMode fly_mode = init;
@@ -253,6 +253,7 @@ extern UART_HandleTypeDef huart1;
 extern kalman_filter g_filters[14];
 
 extern mpu6050_t g_mpu6050;
+extern ms5611_t g_ms5611;
 
 // Remote control
 extern int g_conn_lost_counter;
@@ -413,6 +414,7 @@ void TIM3_IRQHandler(void)
 
   // Activate reading
   MPU6050_update(&g_mpu6050);
+  MS5611_update(&g_ms5611);
 
   // Raw 6-axis, remove noise
   g_ax = SimpleKalmanFilter_updateEstimate(&g_filters[0], g_mpu6050.ax) + g_ax_offset;
@@ -421,6 +423,7 @@ void TIM3_IRQHandler(void)
   g_gx = SimpleKalmanFilter_updateEstimate(&g_filters[3], g_mpu6050.gx) + g_gx_offset;
   g_gy = SimpleKalmanFilter_updateEstimate(&g_filters[4], g_mpu6050.gy) + g_gy_offset;
   g_gz = SimpleKalmanFilter_updateEstimate(&g_filters[5], g_mpu6050.gz) + g_gz_offset;
+  g_altitude = g_ms5611.altitude;
 
   calc_angles();
 
@@ -503,7 +506,7 @@ void TIM3_IRQHandler(void)
       g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_INTEGRAL, MAX_INTEGRAL);
       g_D_yaw = g_gyro_z*g_D_yaw_gain;
 
-      int thrust = MIN_SPEED + g_thrust;
+      int thrust = MIN_SPEED + 3*g_thrust;
 
       g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
@@ -528,9 +531,12 @@ void TIM3_IRQHandler(void)
   monitor[0] = angle_x;
   monitor[1] = angle_y;
   monitor[2] = angle_z;
-  monitor[3] = g_gx;
-  monitor[4] = g_gy;
-  monitor[5] = g_gz;
+  monitor[3] = g_gyro_x;
+  monitor[4] = g_gyro_y;
+  monitor[5] = g_gyro_z;
+  monitor[6] = g_altitude;
+  monitor[7] = g_altitude;
+  monitor[8] = g_altitude;
 #endif
 
 #if MONITOR == 2
@@ -729,10 +735,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
   monitor[4] = g_roll;
   monitor[5] = 0;
 #endif
-}
-
-void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c) {
-  MPU6050_i2c_mem_read_cb_handler(&g_mpu6050);
 }
 
 /* USER CODE END 1 */

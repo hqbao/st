@@ -112,10 +112,11 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
 
 void MPU6050_update(mpu6050_t *mpu6050) {
   // Read MPU6050
-  HAL_I2C_Mem_Read_IT(mpu6050->i2c, mpu6050->address, 0x3B, 1, i2c_rx_buffer, 14);
+  HAL_I2C_Mem_Read(mpu6050->i2c, mpu6050->address, 0x3B, 1, i2c_rx_buffer, 14, 10);
+  MPU6050_parse_6axis(mpu6050);
 }
 
-void MPU6050_i2c_mem_read_cb_handler(mpu6050_t *mpu6050) {
+void MPU6050_parse_6axis(mpu6050_t *mpu6050) {
   // Read MPU6050
   mpu6050->ax = (int16_t)(i2c_rx_buffer[0] << 8 | i2c_rx_buffer[1]);
   mpu6050->ay = (int16_t)(i2c_rx_buffer[2] << 8 | i2c_rx_buffer[3]);
