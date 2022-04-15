@@ -1,152 +1,200 @@
-/*
- * barometer.c
- *
- *  Created on: 5 oct. 2018
- *      Author: alex
- */
+#include "gy86.h"
 
-#include "MS5611.h"
-#include <math.h>
+#define MS5611_NOT_READ           -999
 
-uint8_t MS5611_rx_buf[12];
-uint8_t MS5611_rx_temp[3];
-uint8_t MS5611_rx_press[3];
-uint8_t MS5611_tx;
-uint8_t MS5611_rx;
+// Datasheet page 10
+#define MS5611_CMD_READ_ADC       0x00
+#define MS5611_CMD_READ_PROM      0xA0
+#define MS5611_CMD_RESET          0x1E
+#define MS5611_CMD_CONVERT_D1     0x40
+#define MS5611_CMD_CONVERT_D2     0x50
 
-
-void MS5611_Reset(I2C_HandleTypeDef *I2Cx, MS5611_t *DataStruct)
-{
-	MS5611_tx = CMD_RESET;
-	HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1 , &MS5611_tx, 1, 100);
-	HAL_Delay(10);
-	//For Temperature > 20 Celsius
-	DataStruct->T2 = 0;
-	DataStruct->OFF2 = 0;
-	DataStruct->SENS2 = 0;
+void _command(ms5611_t *ms5611, uint8_t command) {
+  ms5611->result = MS5611_NOT_READ;
+  if (HAL_I2C_Master_Transmit(ms5611->i2c, ms5611->address << 1, &command, 1, 100) == HAL_OK) {
+    ms5611->result = 0;
+    return;
+  }
 }
 
-void MS5611_ReadProm(I2C_HandleTypeDef *I2Cx, MS5611_t *DataStruct)
-{
-		MS5611_tx = CMD_PROM_C0;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[0] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
+void _convert(ms5611_t *ms5611, uint8_t addr, uint8_t bits) {
+  uint8_t index = bits;
+  if (index < 8) index = 8;
+  else if (index > 12) index = 12;
+  index -= 8;
+  uint8_t offset = index * 2;
+  _command(ms5611, addr + offset);
 
-		MS5611_tx = CMD_PROM_C1;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[1] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
+  // Values from page 3 datasheet - MAX column (rounded up)
+  static const uint16_t del[5] = {600, 1200, 2300, 4600, 9100};
 
-		MS5611_tx = CMD_PROM_C2;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[2] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
-
-		MS5611_tx = CMD_PROM_C3;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[3] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
-
-		MS5611_tx = CMD_PROM_C4;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[4] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
-
-		MS5611_tx = CMD_PROM_C5;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[5] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
-
-		MS5611_tx = CMD_PROM_C6;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[6] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
-
-		MS5611_tx = CMD_PROM_C7;
-		HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-		HAL_I2C_Master_Receive(I2Cx, MS5611_ADDR << 1 , MS5611_rx_buf, 2, 100);
-		DataStruct->C[7] = MS5611_rx_buf[0] << 8 | MS5611_rx_buf[1];
-		HAL_Delay(10);
+  // // While loop prevents blocking RTOS
+  // uint16_t wait_time = del[index];
+  // uint32_t start = micros();
+  // while (micros() - start < wait_time) {
+  //   delayMicroseconds(10);
+  // }
+  HAL_Delay(del[index]/1000);
 }
 
+uint32_t _read_ADC(ms5611_t *ms5611) {
+  _command(ms5611, MS5611_CMD_READ_ADC);
+  if (ms5611->result == 0) {
+    uint8_t buf[3] = {0};
+    if (HAL_I2C_Master_Receive(ms5611->i2c, (ms5611->address << 1) | 0x01, buf, 3, 100) != HAL_OK)
+      ms5611->result = MS5611_NOT_READ;
 
-void MS5611_RequestTemperature(I2C_HandleTypeDef *I2Cx, OSR osr)
-{
-	MS5611_tx = TEMP_OSR_256 + (2 * osr);
-	HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR <<1, &MS5611_tx, 1, 100);
+    uint32_t raw_temperature = (uint32_t)(buf[0] << 16) | (uint32_t)(buf[1] << 8) | buf[2];
+    return raw_temperature;
+  }
+
+  return 0;
 }
 
-void MS5611_RequestPressure(I2C_HandleTypeDef *I2Cx, OSR osr)
-{
-	MS5611_tx = PRESSURE_OSR_256 + (2 * osr);
-	HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
+uint16_t _read_PROM(ms5611_t *ms5611, uint8_t reg) {
+  // Last EEPROM register is CRC - Page 13 datasheet.
+  uint8_t prom_CRC_reg = 7;
+  if (reg > prom_CRC_reg) return 0;
+
+  uint8_t offset = reg * 2;
+  _command(ms5611, MS5611_CMD_READ_PROM + offset);
+  if (ms5611->result == 0) {
+    uint8_t buf[2] = {0};
+    if (HAL_I2C_Master_Receive(ms5611->i2c, ms5611->address << 1, buf, 2, 100) != HAL_OK)
+      ms5611->result = MS5611_NOT_READ;
+
+    uint16_t value = (int16_t) buf[0] << 8 | (int16_t) buf[1];
+    return value;
+  }
+
+  return 0;
 }
 
-void MS5611_ReadTemperature(I2C_HandleTypeDef *I2Cx, MS5611_t *DataStruct)
-{
-	//Read ADC
-	MS5611_tx = 0x00;
-	HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-	HAL_I2C_Master_Receive(I2Cx, (MS5611_ADDR << 1) | 0x01, MS5611_rx_temp, 3, 100);
-//	HAL_I2C_Mem_Read(I2Cx, MS5611_ADDR <<1 , 0x00, 1, MS5611_rx_temp, 3, 100);
+uint8_t _reset(ms5611_t *ms5611) {
+  _command(ms5611, MS5611_CMD_RESET);
 
-	DataStruct->DigitalTemperature_D2 = (MS5611_rx_temp[0] << 16) | (MS5611_rx_temp[1] << 8) | MS5611_rx_temp[2];
+  // // While loop prevents blocking RTOS
+  // uint32_t start = micros();
+  // while (micros() - start < 2800) {
+  //   delayMicroseconds(10);
+  // }
+  HAL_Delay(2800);
+
+  // Constants that were multiplied in read()
+  // Do this once and you save CPU cycles
+  ms5611->C[0] = 1;
+  ms5611->C[1] = 32768L;          // SENSt1   = C[1] * 2^15
+  ms5611->C[2] = 65536L;          // OFFt1    = C[2] * 2^16
+  ms5611->C[3] = 3.90625E-3;      // TCS      = C[3] / 2^6
+  ms5611->C[4] = 7.8125E-3;       // TCO      = C[4] / 2^7
+  ms5611->C[5] = 256;             // Tref     = C[5] * 2^8
+  ms5611->C[6] = 1.1920928955E-7; // TEMPSENS = C[6] / 2^23
+
+  // Read factory calibrations from EEPROM.
+  uint8_t ROM_OK = 1;
+  for (uint8_t reg = 0; reg < 7; reg++) {
+    // Used indices match datasheet.
+    // C[0] == manufacturer - read but not used;
+    // C[7] == CRC - skipped.
+    uint16_t tmp = _read_PROM(ms5611, reg);
+    ms5611->C[reg] *= tmp;
+    // ms5611->device_ID is a simple SHIFT XOR merge of PROM data
+    ms5611->device_ID <<= 4;
+    ms5611->device_ID ^= tmp;
+
+    if (reg > 0) {
+      ROM_OK = ROM_OK && (tmp != 0);
+    }
+  }
+
+  return ROM_OK;
 }
 
-void MS5611_ReadPressure(I2C_HandleTypeDef *I2Cx, MS5611_t *DataStruct)
-{
-	//Read ADC
-	MS5611_tx = 0x00;
-	HAL_I2C_Master_Transmit(I2Cx, MS5611_ADDR << 1, &MS5611_tx, 1, 100);
-	HAL_I2C_Master_Receive(I2Cx, (MS5611_ADDR << 1) | 0x01, MS5611_rx_press, 3, 100);
-	//HAL_I2C_Mem_Read(I2Cx, MS5611_ADDR <<1, 0x00, 1, MS5611_rx_press, 3, 100);
+int MS5611_init(ms5611_t *ms5611, I2C_HandleTypeDef *i2c, uint8_t device_addr) {
+  ms5611->i2c = i2c;
+  ms5611->address            = device_addr;
+  ms5611->sampling_rate      = OSR_STANDARD;
+  ms5611->temperature        = MS5611_NOT_READ;
+  ms5611->pressure           = MS5611_NOT_READ;
+  ms5611->result             = MS5611_NOT_READ;
+  ms5611->device_ID          = 0;
+  ms5611->pressure_offset    = 0;
+  ms5611->temperature_offset = 0;
+  ms5611->compensation       = 1;
 
-	DataStruct->DigitalPressure_D1 = MS5611_rx_press[0] << 16 | MS5611_rx_press[1] << 8 | MS5611_rx_press[2];
+  if (ms5611->address < 0x76 || ms5611->address > 0x77) return 1;
+
+  if (HAL_I2C_IsDeviceReady(ms5611->i2c, ms5611->address << 1, 100, 1000) != HAL_OK) return 2;
+
+  if (!_reset(ms5611))
+    return 3;
+
+  return 0;
 }
 
-void MS5611_CalculateTemperature(MS5611_t *DataStruct)
-{
-	DataStruct->dT = DataStruct->C[5];
-	DataStruct->dT <<= 8; //Calculated up to C5 * 2^8
-	DataStruct->dT *= -1; //Apply negative sign
-	DataStruct->dT += DataStruct->DigitalTemperature_D2; // = D2 - C5 * 2^8
-
-	DataStruct->TEMP = DataStruct->dT * DataStruct->C[6];
-	DataStruct->TEMP >>= 23; // Calculated up to dT * C6 / 2^23
-	DataStruct->TEMP += 2000;
+void MS5611_set_oversampling(ms5611_t *ms5611, osr sampling_rate) {
+  ms5611->sampling_rate = (uint8_t) sampling_rate;
 }
 
-void MS5611_CalculatePressure(MS5611_t *DataStruct)
-{
-	DataStruct->OFF = DataStruct->C[2];
-	DataStruct->OFF <<= 16; //Calculated up to C2 * 2^16
-	DataStruct->OFF += (DataStruct->C[4] * DataStruct->dT) >> 7;
+int MS5611_read(ms5611_t *ms5611) {
+  // VARIABLES NAMES BASED ON DATASHEET
+  // ALL MAGIC NUMBERS ARE FROM DATASHEET
 
+  _convert(ms5611, MS5611_CMD_CONVERT_D1, ms5611->sampling_rate);
+  if (ms5611->result) return 1;
+  // NOTE: D1 and D2 seem reserved in MBED (NANO BLE)
+  uint32_t _D1 = _read_ADC(ms5611);
+  if (ms5611->result) return 2;
 
-	DataStruct->SENS = DataStruct->C[1];
-	DataStruct->SENS <<= 15; // Calculated up to C1 * 2^15
-	DataStruct->SENS += (DataStruct->C[3] * DataStruct->dT) >>8;
+  _convert(ms5611, MS5611_CMD_CONVERT_D2, ms5611->sampling_rate);
+  if (ms5611->result) return 3;
+  uint32_t _D2 = _read_ADC(ms5611);
+  if (ms5611->result) return 4;
 
-	DataStruct->P = ((DataStruct->DigitalPressure_D1 * DataStruct->SENS) / pow(2, 21) - DataStruct->OFF) / pow(2, 15);
+  // TEMP & PRESS MATH - PAGE 7/20
+  float dT = _D2 - ms5611->C[5];
+  ms5611->temperature = 2000 + dT * ms5611->C[6];
+
+  float offset =  ms5611->C[2] + dT * ms5611->C[4];
+  float sens = ms5611->C[1] + dT * ms5611->C[3];
+
+  if (ms5611->compensation == 1) {
+    // SECOND ORDER COMPENSATION - PAGE 8/20
+    // COMMENT OUT < 2000 CORRECTION IF NOT NEEDED
+    // NOTE TEMPERATURE IS IN 0.01 C
+    if (ms5611->temperature < 2000) {
+      float T2 = dT * dT * 4.6566128731E-10;
+      float t = (ms5611->temperature - 2000) * (ms5611->temperature - 2000);
+      float offset2 = 2.5 * t;
+      float sens2 = 1.25 * t;
+      // COMMENT OUT < -1500 CORRECTION IF NOT NEEDED
+      if (ms5611->temperature < -1500) {
+        t = (ms5611->temperature + 1500) * (ms5611->temperature + 1500);
+        offset2 += 7 * t;
+        sens2 += 5.5 * t;
+      }
+      ms5611->temperature -= T2;
+      offset -= offset2;
+      sens -= sens2;
+    }
+    // END SECOND ORDER COMPENSATION
+  }
+
+  ms5611->pressure = (_D1 * sens * 4.76837158205E-7 - offset) * 3.051757813E-5;
+
+  return 0;
 }
 
-#define SEA_PRESSURE 1013.25f
+float MS5611_getTemperature(ms5611_t *ms5611) {
+  if (ms5611->temperature_offset == 0)
+    return ms5611->temperature * 0.01;
 
-float MS5611_getAltitude1(float pressure) //No temperature correction.
-{
-	return (1.0f - powf((pressure / SEA_PRESSURE), 0.1902226f)) * 44307.69396f; //145366.45f * 0.3048f = 44307.69396f;
-}
+  return ms5611->temperature * 0.01 + ms5611->temperature_offset;
+};
 
-float MS5611_getAltitude2(float pressure, float temperature) //Get Altitude with temperature correction.
-{
-	return (1.0f - powf((pressure / SEA_PRESSURE), 0.1902226f)) * (temperature + 273.15f) / 0.0065f;
-}
+float MS5611_getPressure(ms5611_t *ms5611) {
+  if (ms5611->pressure_offset == 0)
+    return ms5611->pressure * 0.01;
 
+  return ms5611->pressure * 0.01 + ms5611->pressure_offset;
+};

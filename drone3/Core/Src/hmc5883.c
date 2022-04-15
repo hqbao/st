@@ -37,19 +37,6 @@ THE SOFTWARE.
 extern I2C_HandleTypeDef hi2c1;
 static uint8_t devAddr = HMC5883L_DEFAULT_ADDRESS;
 
-static void debug(uint8_t led, uint8_t count) {
-  for (int i = 0; i < count; i++) {
-    if (led == 1) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
-    if (led == 2) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
-    HAL_Delay(100);
-    if (led == 1) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
-    if (led == 2) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
-    HAL_Delay(100);
-  }
-
-  HAL_Delay(200);
-}
-
 //static uint8_t buffer[6];
 uint8_t mode;
 /** Power on and prepare for general usage.

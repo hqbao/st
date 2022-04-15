@@ -22,8 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include <stdio.h>
 #include "kalman.h"
-#include "MPU6050.h"
+#include "gy86.h"
 
 /* USER CODE END Includes */
 
@@ -55,11 +56,14 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-kalman_filter g_filters[14];
+kalman_filter g_filters[16];
+
+mpu6050_t g_mpu6050;
+ms5611_t g_ms5611;
 
 // Remote control
 int g_conn_lost_counter = -2147483648;
-uint8_t g_control[5] = {0, 0, 0, 0, 0};
+uint8_t g_control[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 /* USER CODE END PV */
 
@@ -95,12 +99,14 @@ static void flash(uint8_t led, uint8_t count) {
 
 // Monitor console
 void console(const char *str) {
-  HAL_UART_Transmit_IT(&huart1, str, strlen(str));
+  HAL_UART_Transmit_IT(&huart1, (uint8_t*)str, (uint16_t)strlen(str));
 }
 
 char g_console_msg[256] = {0};
-void monitor(float x1, float x2, float x3,
-    float x4, float x5, float x6, float x7, float x8, float x9) {
+void send_data(
+  float x1, float x2, float x3,
+  float x4, float x5, float x6,
+  float x7, float x8, float x9) {
   memset(g_console_msg, 0, 256);
   sprintf(g_console_msg, "[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
       (int)(x1*100000),
@@ -114,6 +120,8 @@ void monitor(float x1, float x2, float x3,
       (int)(x9*100000));
   console(g_console_msg);
 }
+
+extern float monitor[9];
 
 /* USER CODE END 0 */
 
@@ -154,7 +162,11 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
-  flash(1, 2);
+  // Turn off leds
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, RESET);
+
+  flash(1, 5);
 
   // Initialise Kalman filters
   SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 1);
@@ -164,39 +176,36 @@ int main(void)
   SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
   SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
 
-  // MPU6050 + HMC5883L
-  MPU6050_t g_dev1;
+  // Init gy-86
+  while (1) {
+    int error = MPU6050_init(
+        &g_mpu6050,
+        &hi2c1,
+        MPU6050_DataRate_8KHz,
+        MPU6050_Accelerometer_16G,
+        MPU6050_Gyroscope_2000s);
+    if (error == 0) break;
+    flash(2, error);
+  }
 
-  while (MPU6050_Init(&g_dev1, &hi2c1, 3, 3, 5) != 0)
-    flash(1, 5);
-
-  while (MPU6050_Bypass(&g_dev1) != 0)
-    flash(1, 10);
-
-  while (HMC5883L_Setup(&g_dev1) != 0)
-    flash(1, 15);
-
-  while (MPU6050_Master(&g_dev1) != 0)
-    flash(1, 20);
-
-  while (MPU6050_Slave_Read(&g_dev1) != 0)
-    flash(1, 25);
-
-  flash(1, 3);
+  while (1) {
+    int error = MS5611_init(
+        &g_ms5611,
+        &hi2c1,
+        0x77);
+    if (error == 0) break;
+    flash(2, error);
+  }
+  MS5611_set_oversampling(&g_ms5611, OSR_ULTRA_HIGH);
 
   // Initialise motor PWM timer
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-  flash(1, 3);
 
   // Run timers
   HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
-  flash(1, 3);
-
-  flash(1, 2);
 
   /* USER CODE END 2 */
 
@@ -207,15 +216,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_UART_Receive_IT(&huart1, g_control, 5);
+    HAL_UART_Receive_IT(&huart1, g_control, 10);
 
-    HAL_Delay(100);
-    if (MPU6050_Read_All(&g_dev1) != 0) continue;
-    MPU6050_Parsing_NoOffset(&g_dev1);
+    if (MS5611_read(&g_ms5611) != 0) {
+      flash(2, 1);
+    }
 
-    monitor(g_dev1.Accel_X_RAW, g_dev1.Accel_Y_RAW, g_dev1.Accel_Z_RAW,
-        g_dev1.Gyro_X_RAW, g_dev1.Gyro_Y_RAW, g_dev1.Gyro_Z_RAW,
-        g_dev1.Mag_X_RAW, g_dev1.Mag_Y_RAW, g_dev1.Mag_Z_RAW);
+    float tem = MS5611_getTemperature(&g_ms5611);
+    float psr = MS5611_getPressure(&g_ms5611);
+    monitor[0] = tem;
+    monitor[1] = tem;
+    monitor[2] = tem;
+    monitor[3] = psr;
+    monitor[4] = psr;
+    monitor[5] = psr;
   }
   /* USER CODE END 3 */
 }
@@ -358,7 +372,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 20;
+  htim1.Init.Prescaler = 21;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 5000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -444,7 +458,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 20;
+  htim2.Init.Prescaler = 21;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 5000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -514,7 +528,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 83;
+  htim3.Init.Prescaler = 84;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 5000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -554,14 +568,15 @@ static void MX_TIM4_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_IC_InitTypeDef sConfigIC = {0};
 
   /* USER CODE BEGIN TIM4_Init 1 */
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 83;
+  htim4.Init.Prescaler = 420;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 20000;
+  htim4.Init.Period = 42000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -573,9 +588,33 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_IC_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_IC_ConfigChannel(&htim4, &sConfigIC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -633,6 +672,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);

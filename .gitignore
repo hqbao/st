@@ -53,4 +53,5 @@ dkms.conf
 
 */.metadata
 .metadata
-*/Debug
+drone-stm32f407/Debug
+drone3/Debug

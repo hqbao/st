@@ -108,7 +108,7 @@ static void flash(uint8_t led, uint8_t count) {
 
 // Monitor console
 void console(const char *str) {
-  HAL_UART_Transmit_IT(&huart1, str, strlen(str));
+  HAL_UART_Transmit_IT(&huart1, (uint8_t *)str, (uint16_t)strlen(str));
 }
 
 void send_data(float x1, float x2, float x3,
@@ -618,7 +618,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 420;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 4200;
+  htim4.Init.Period = 42000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

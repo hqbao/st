@@ -54,119 +54,114 @@ void setOversampling(MS5611 *dev, ms5611_osr_t osr){
 }
 
 // Get oversampling value
-ms5611_osr_t getOversampling(MS5611 dev)
-{
+ms5611_osr_t getOversampling(MS5611 dev) {
     return (ms5611_osr_t) dev.uosr;
 }
 
-void reset(void){ 
-		while(HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t*) MS5611_CMD_RESET, 1, 10) != HAL_OK);
-		}
+void reset(void){
+  while(HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t*) MS5611_CMD_RESET, 1, 10) != HAL_OK);
+}
 
 void readPROM(MS5611 *dev){
-    reset();
-		HAL_Delay(3000);
-		//read PROM
-		uint8_t buf1[16];
-		//uint16_t C[8];
-		uint8_t CMD_PROM = 0xA0;
-		for (int i = 0; i < 8; i++) {
-		while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_PROM, 1, 100) != HAL_OK);
-		while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, &buf1[i*2], 2, 100) != HAL_OK);
-		CMD_PROM = CMD_PROM + 2;
-		}
-		for (uint8_t i = 0; i < 6; i++) {
-		dev->fc[i] = (int16_t) buf1[2*i+2] << 8 | (int16_t) buf1[2*i+3];
-		}
-		crc4(dev->fc);
+  reset();
+  HAL_Delay(3000);
+  //read PROM
+  uint8_t buf1[16];
+  //uint16_t C[8];
+  uint8_t CMD_PROM = 0xA0;
+  for (int i = 0; i < 8; i++) {
+    while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_PROM, 1, 100) != HAL_OK);
+    while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, &buf1[i*2], 2, 100) != HAL_OK);
+    CMD_PROM = CMD_PROM + 2;
+  }
+  for (uint8_t i = 0; i < 6; i++) {
+    dev->fc[i] = (int16_t) buf1[2*i+2] << 8 | (int16_t) buf1[2*i+3];
+  }
+  crc4(dev->fc);
 }
 uint32_t RawTemp;
-uint32_t readRawTemperature(MS5611 *dev, uint8_t y){
-		
-		uint8_t buf[3];
-		uint8_t CMD_ADC_D2 = 0x50 + dev->uosr;
-		uint8_t CMD_ADC_READ = 0x00;
-		buf[0] = 0x00;buf[1] = 0x00;buf[2] = 0x00; 
-		if(y==0) {
-		while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_D2, 1, 100) != HAL_OK);
-		} // send conversion command
-		//HAL_Delay(5);
-		if(y==3) {
-		while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_READ, 1, 100) != HAL_OK); // //send read command
-		while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, buf, 3, 100) != HAL_OK);
-		uint32_t D1 = (uint32_t)(buf[0] << 16) | (uint32_t)(buf[1] << 8) | buf[2];	
+uint32_t readRawTemperature(MS5611 *dev, uint8_t y) {
+  uint8_t buf[3];
+  uint8_t CMD_ADC_D2 = 0x50 + dev->uosr;
+  uint8_t CMD_ADC_READ = 0x00;
+  buf[0] = 0x00;buf[1] = 0x00;buf[2] = 0x00;
+  if (y==0) {
+    while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_D2, 1, 100) != HAL_OK);
+  } // send conversion command
+  //HAL_Delay(5);
+  if(y==3) {
+    while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_READ, 1, 100) != HAL_OK); // //send read command
+    while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, buf, 3, 100) != HAL_OK);
+    uint32_t D1 = (uint32_t)(buf[0] << 16) | (uint32_t)(buf[1] << 8) | buf[2];
     RawTemp = D1;
-		}	
-		return RawTemp;
+  }
+  return RawTemp;
 }
 uint32_t RawPres;
 uint32_t readRawPressure(MS5611 *dev, uint8_t x){
-		
-    uint8_t buf[3];
-		uint8_t CMD_ADC_D1 = 0x40 + dev->uosr;
-		uint8_t CMD_ADC_READ = 0x00;
-		buf[0] = 0x00;buf[1] = 0x00;buf[2] = 0x00; 
-		if(x==4) {
-		while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_D1, 1, 100) != HAL_OK);
-		} // send conversion command
-		//HAL_Delay(5);
-		if(x==7) {
-		while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_READ, 1, 100) != HAL_OK); // //send read command
-		while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, buf, 3, 100) != HAL_OK);
-		uint32_t D2 = (uint32_t)(buf[0] << 16) | (uint32_t)(buf[1] << 8) | buf[2];	
+  uint8_t buf[3];
+  uint8_t CMD_ADC_D1 = 0x40 + dev->uosr;
+  uint8_t CMD_ADC_READ = 0x00;
+  buf[0] = 0x00;buf[1] = 0x00;buf[2] = 0x00;
+  if(x==4) {
+    while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_D1, 1, 100) != HAL_OK);
+  } // send conversion command
+  //HAL_Delay(5);
+  if (x==7) {
+    while (HAL_I2C_Master_Transmit(&hi2c1, MS5611_ADDRESS, (uint8_t *) &CMD_ADC_READ, 1, 100) != HAL_OK); // //send read command
+    while (HAL_I2C_Master_Receive(&hi2c1, MS5611_ADDRESS_READ, buf, 3, 100) != HAL_OK);
+    uint32_t D2 = (uint32_t)(buf[0] << 16) | (uint32_t)(buf[1] << 8) | buf[2];
     RawPres = D2;
-		}
-		return RawPres;
+  }
+  return RawPres;
 }
 
 int32_t readPressure(MS5611* dev, bool compensation, uint8_t x, uint8_t y){
-    uint32_t D1 = readRawPressure(dev, x);
-    uint32_t D2 = readRawTemperature(dev, y);
-    int32_t dT = D2 - (uint32_t)dev->fc[4] * 256;
-    int64_t OFF = (int64_t)dev->fc[1] * 65536 + (int64_t)dev->fc[3] * dT / 128;
-    int64_t SENS = (int64_t)dev->fc[0] * 32768 + (int64_t)dev->fc[2] * dT / 256;
-    if (compensation){
-		int32_t TEMP = 2000 + ((int64_t) dT * dev->fc[5]) / 8388608;
-		dev->OFF2 = 0;
-		dev->SENS2 = 0;
-		if (TEMP < 2000){
-	    dev->OFF2 = 5 * ((TEMP - 2000) * (TEMP - 2000)) / 2;
-	    dev->SENS2 = 5 * ((TEMP - 2000) * (TEMP - 2000)) / 4;
-		}
-		if (TEMP < -1500){
-	    dev->OFF2 = dev->OFF2 + 7 * ((TEMP + 1500) * (TEMP + 1500));
-	    dev->SENS2 = dev->SENS2 + 11 * ((TEMP + 1500) * (TEMP + 1500)) / 2;
-		}
-		OFF = OFF - dev->OFF2;
-		SENS = SENS - dev->SENS2;
-		}
-    uint32_t P = (D1 * SENS / 2097152 - OFF) / 32768;
+  uint32_t D1 = readRawPressure(dev, x);
+  uint32_t D2 = readRawTemperature(dev, y);
+  int32_t dT = D2 - (uint32_t)dev->fc[4] * 256;
+  int64_t OFF = (int64_t)dev->fc[1] * 65536 + (int64_t)dev->fc[3] * dT / 128;
+  int64_t SENS = (int64_t)dev->fc[0] * 32768 + (int64_t)dev->fc[2] * dT / 256;
+  if (compensation) {
+    int32_t TEMP = 2000 + ((int64_t) dT * dev->fc[5]) / 8388608;
+    dev->OFF2 = 0;
+    dev->SENS2 = 0;
+    if (TEMP < 2000){
+      dev->OFF2 = 5 * ((TEMP - 2000) * (TEMP - 2000)) / 2;
+      dev->SENS2 = 5 * ((TEMP - 2000) * (TEMP - 2000)) / 4;
+    }
+    if (TEMP < -1500){
+      dev->OFF2 = dev->OFF2 + 7 * ((TEMP + 1500) * (TEMP + 1500));
+      dev->SENS2 = dev->SENS2 + 11 * ((TEMP + 1500) * (TEMP + 1500)) / 2;
+    }
+    OFF = OFF - dev->OFF2;
+    SENS = SENS - dev->SENS2;
+  }
+  uint32_t P = (D1 * SENS / 2097152 - OFF) / 32768;
 
-    return P;
+  return P;
 }
 
 double readTemperature(MS5611 *dev, bool compensation, uint8_t y){
-    uint32_t D2 = readRawTemperature(dev, y);
-    int32_t dT = D2 - (uint32_t)dev->fc[4] * 256;
-    int32_t TEMP = 2000 + ((int64_t) dT * dev->fc[5]) / 8388608;
-    dev->TEMP2 = 0;
-    if (compensation){
-		if (TEMP < 2000){dev->TEMP2 = (int32_t) ((dT * dT) / (2 << 3));} //2<<30
-    } 
-    TEMP = TEMP - dev->TEMP2;
-    return ((double)TEMP/100);
+  uint32_t D2 = readRawTemperature(dev, y);
+  int32_t dT = D2 - (uint32_t)dev->fc[4] * 256;
+  int32_t TEMP = 2000 + ((int64_t) dT * dev->fc[5]) / 8388608;
+  dev->TEMP2 = 0;
+  if (compensation){
+    if (TEMP < 2000){dev->TEMP2 = (int32_t) ((dT * dT) / (2 << 3));} //2<<30
+  }
+  TEMP = TEMP - dev->TEMP2;
+  return ((double)TEMP/100);
 }
 
 // Calculate altitude from Pressure & Sea level pressure
-double getAltitude(double pressure, double seaLevelPressure)
-{
-    return (44330.0 * (1.0 - pow(((double)pressure / (double)seaLevelPressure), 0.1902949)));
-		//return ((pow((seaLevelPressure / pressure), 1/5.257) - 1.0)) * ((273.15)) / 0.0065 ;
+double getAltitude(double pressure, double seaLevelPressure) {
+  return (44330.0 * (1.0 - pow(((double)pressure / (double)seaLevelPressure), 0.1902949)));
+  //return ((pow((seaLevelPressure / pressure), 1/5.257) - 1.0)) * ((273.15)) / 0.0065 ;
 }
 
 // Calculate sea level from Pressure given on specific altitude
-double getSeaLevel(double pressure, double altitude)
-{
+double getSeaLevel(double pressure, double altitude) {
     return ((double)pressure / pow(1.0f - ((double)altitude / 44330.0f), 5.255f));
 }
 
@@ -176,7 +171,7 @@ uint16_t readRegister16(uint8_t reg){
 }
 // Read 24-bit from register (oops XSB, MSB, LSB)
 uint32_t readRegister24(uint8_t reg){
-	return 0; 
+	return 0;
 }
 //////////////////////////////////////////////////////
 unsigned char crc4(unsigned int n_prom[]) {
@@ -193,7 +188,7 @@ unsigned char crc4(unsigned int n_prom[]) {
 		else n_rem ^= (unsigned short) (n_prom[cnt>>1]>>8);
 		for (n_bit = 8; n_bit > 0; n_bit--) {
 			if (n_rem & (0x8000)) {
-				n_rem = (n_rem << 1) ^ 0x3000; 
+				n_rem = (n_rem << 1) ^ 0x3000;
 			} else {
 				n_rem = (n_rem << 1);
 			}

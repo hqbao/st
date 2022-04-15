@@ -48,7 +48,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 5 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
+#define MONITOR 3 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
 
 /* USER CODE END PD */
 
@@ -72,12 +72,12 @@ typedef enum {
 #define D_ROLL_GAIN 80 //
 
 #define P_YAW_GAIN 120 //
-#define I_YAW_GAIN 1 //
+#define I_YAW_GAIN 2 //
 #define D_YAW_GAIN 10 //
 
 #define ACCUMULATION_TIME 0.07 // 0.005 = 1/FREQ
 
-#define MAX_LOST_CONN_COUNTER 50
+#define MAX_LOST_CONN_COUNTER 100
 
 #define FREQ 200
 #define SSF_GYRO 65.5
@@ -127,9 +127,9 @@ float g_gx_offset = 288; // 288
 float g_gy_offset = -128; // -128
 float g_gz_offset = -32; // -32
 
-float g_az_current = 0;
+float g_altitude;
 
-// Take off
+// Fly mode
 FlyMode fly_mode = init;
 
 // PID
@@ -236,6 +236,7 @@ void calc_angles() {
   g_angle_y = measures[ROLL];
   g_angle_z += measures[YAW]*0.001;
 }
+
 
 /* USER CODE END PFP */
 
@@ -417,7 +418,6 @@ void TIM3_IRQHandler(void)
 
   // Read MPU6050 values
   SD_MPU6050_ReadAll(&hi2c1, &g_dev1);
-  HMC5883L_getHeading(&g_mx, &g_my, &g_mz);
 
   // Raw 6-axis, remove noise
   g_ax = SimpleKalmanFilter_updateEstimate(&g_filters[0], g_dev1.Accelerometer_X) + g_ax_offset;
@@ -508,7 +508,7 @@ void TIM3_IRQHandler(void)
       g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_INTEGRAL, MAX_INTEGRAL);
       g_D_yaw = g_gyro_z*g_D_yaw_gain;
 
-      int thrust = MIN_SPEED + g_thrust;
+      int thrust = MIN_SPEED + 3 + g_thrust*3;
 
       g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
@@ -608,8 +608,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   // To know whether this timer is hanging
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
 
-  // Serialize control values
-  uint8_t g_control_1st_idx = 0;
+  // Serialise control values
+  static uint8_t g_control_1st_idx = 0;
   if (g_control[0] == 254) g_control_1st_idx = 1;
   if (g_control[1] == 254) g_control_1st_idx = 2;
   if (g_control[2] == 254) g_control_1st_idx = 3;
