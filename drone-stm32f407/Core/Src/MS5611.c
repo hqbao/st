@@ -1,6 +1,7 @@
 #include "gy86.h"
 #include <math.h>
 #include "stm32f4xx_it.h"
+#include <string.h>
 
 #define MS5611_ADDR 0x77
 #define CMD_RESET 0x1E
@@ -25,6 +26,10 @@
 #define TEMP_OSR_2048 0x56
 #define TEMP_OSR_4096 0x58
 
+float limit(float number, float min, float max) {
+  return number < min ? min : (number > max ? max : number);
+}
+
 void _reset(ms5611_t *ms5611) {
   ms5611->tx = CMD_RESET;
   HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1 , &ms5611->tx, 1, 100);
@@ -34,6 +39,8 @@ void _reset(ms5611_t *ms5611) {
   ms5611->T2 = 0;
   ms5611->OFF2 = 0;
   ms5611->SENS2 = 0;
+
+  average_filter_init(&ms5611->af, 20);
 }
 
 void _read_PROM(ms5611_t *ms5611) {
@@ -153,6 +160,20 @@ void MS5611_calc_pressure(ms5611_t *ms5611) {
 void MS5611_calc_altitude(ms5611_t *ms5611) {
   float temperature = (float)ms5611->TEMP/100.f;
   float pressure = (float)ms5611->P/100.f;
+
+  // Apply average filter for altitude
+  ms5611->fast_pressure = average_filter_update(&ms5611->af, pressure);
+
+  // Apply complementary filter
+  ms5611->slow_pressure= ms5611->slow_pressure*0.99 + ms5611->fast_pressure*0.01;
+
+  // Fix slow response problem
+  float diff = limit(ms5611->fast_pressure - ms5611->slow_pressure, -8, 8);
+  if (diff < -0.006 || diff > 0.006)
+    ms5611->slow_pressure += 0.1*diff;
+
+  pressure = ms5611->slow_pressure;
+
   ms5611->altitude = (1.0f - powf((pressure / SEA_PRESSURE), 0.1902226f)) * (temperature + 273.15f) / 0.0065f;
 }
 

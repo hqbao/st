@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 
 #include <stdio.h>
+#include <string.h>
 #include "kalman.h"
 #include "gy86.h"
 
@@ -56,7 +57,7 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-kalman_filter g_filters[16];
+kalman_filter_t g_filters[8];
 
 mpu6050_t g_mpu6050;
 ms5611_t g_ms5611;
@@ -168,17 +169,11 @@ int main(void)
 
   flash(1, 5);
 
-  // Initialise Kalman filters
-  SimpleKalmanFilter_Init(&g_filters[0], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[1], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[2], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[3], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[4], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[5], 2, 2, 1);
-  SimpleKalmanFilter_Init(&g_filters[6], 2, 2, 0.01); // Thrust
-  SimpleKalmanFilter_Init(&g_filters[7], 2, 2, 0.01); // Yaw
-  SimpleKalmanFilter_Init(&g_filters[8], 2, 2, 0.01); // Pitch
-  SimpleKalmanFilter_Init(&g_filters[9], 2, 2, 0.01); // Roll
+  // Initialise filters for remote control
+  kalman_filter_init(&g_filters[0], 2, 2, 0.01); // Thrust
+  kalman_filter_init(&g_filters[1], 2, 2, 0.01); // Yaw
+  kalman_filter_init(&g_filters[2], 2, 2, 0.01); // Pitch
+  kalman_filter_init(&g_filters[3], 2, 2, 0.01); // Roll
 
   // Init gy-86
   while (1) {
@@ -191,6 +186,8 @@ int main(void)
     if (error == 0) break;
     flash(2, error);
   }
+
+  MPU6050_set_offset(&g_mpu6050, -422, -783, -61, 288, -128, -32);
 
   while (1) {
     int error = MS5611_init(

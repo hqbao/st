@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
+#include "kalman.h"
 
 #define MPU6050_DataRate_8KHz       0   /*!< Sample rate set to 8 kHz */
 #define MPU6050_DataRate_4KHz       1   /*!< Sample rate set to 4 kHz */
@@ -36,16 +37,37 @@ typedef struct {
   float ax;
   float ay;
   float az;
-
   float temperature;
-
   float gx;
   float gy;
   float gz;
+
+  float ax_offset;
+  float ay_offset;
+  float az_offset;
+  float gx_offset;
+  float gy_offset;
+  float gz_offset;
+
+  float angle_x;
+  float angle_y;
+  float angle_z;
+
+  // Calculated angles from gyro's values in that order: X, Y, Z
+  float gyro_angle[3];
+  float acc_angle[3];
+  float measures[3];
+  long acc_total_vector;
+  uint8_t initialized;
+
+  kalman_filter_t kf[6];
 } mpu6050_t;
 
 int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
     uint8_t data_rate, MPU6050_Accelerometer accel, MPU6050_Gyroscope gyro);
+void MPU6050_set_offset(mpu6050_t *mpu6050,
+    float ax_offset, float ay_offset, float az_offset,
+    float gx_offset, float gy_offset, float gz_offset);
 void MPU6050_update(mpu6050_t *mpu6050);
 void MPU6050_parse_6axis(mpu6050_t *mpu6050);
 
@@ -74,6 +96,10 @@ typedef struct {
   int64_t OFF;
   int64_t SENS;
   int32_t P;
+
+  average_filter_t af;
+  float fast_pressure;
+  float slow_pressure;
 
   float altitude;
 

@@ -2,6 +2,15 @@
 
 #define MPU6050_I2C_ADDR 0xD0
 
+#define FREQ 200
+#define SSF_GYRO 65.5
+#define X 0
+#define Y 1
+#define Z 2
+#define YAW 0
+#define PITCH 1
+#define ROLL 2
+
 uint8_t i2c_rx_buffer[32] = {0};
 
 int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
@@ -107,7 +116,32 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
   }
   if (counter >= 5) return 13;
 
+  kalman_filter_init(&mpu6050->kf[0], 2, 2, 1); // Accel x
+  kalman_filter_init(&mpu6050->kf[1], 2, 2, 1); // Accel y
+  kalman_filter_init(&mpu6050->kf[2], 2, 2, 1); // Accel z
+  kalman_filter_init(&mpu6050->kf[3], 2, 2, 1); // Gyro x
+  kalman_filter_init(&mpu6050->kf[4], 2, 2, 1); // Gyro Y
+  kalman_filter_init(&mpu6050->kf[5], 2, 2, 1); // Gyro z
+
+  // For angle calculation
+  memset(mpu6050->gyro_angle, 0, 3 * sizeof(float));
+  memset(mpu6050->acc_angle, 0, 3 * sizeof(float));
+  memset(mpu6050->measures, 0, 3 * sizeof(float));
+  mpu6050->initialized = 0;
+  mpu6050->angle_z = 0;
+
   return 0;
+}
+
+void MPU6050_set_offset(mpu6050_t *mpu6050,
+    float ax_offset, float ay_offset, float az_offset,
+    float gx_offset, float gy_offset, float gz_offset) {
+  mpu6050->ax_offset = ax_offset; // -422
+  mpu6050->ay_offset = ay_offset; // -783
+  mpu6050->az_offset = az_offset; // -618
+  mpu6050->gx_offset = gx_offset; // 288
+  mpu6050->gy_offset = gy_offset; // -128
+  mpu6050->gz_offset = gz_offset; // -32
 }
 
 void MPU6050_update(mpu6050_t *mpu6050) {
@@ -128,4 +162,59 @@ void MPU6050_parse_6axis(mpu6050_t *mpu6050) {
   mpu6050->gx = (int16_t)(i2c_rx_buffer[8] << 8 | i2c_rx_buffer[9]);
   mpu6050->gy = (int16_t)(i2c_rx_buffer[10] << 8 | i2c_rx_buffer[11]);
   mpu6050->gz = (int16_t)(i2c_rx_buffer[12] << 8 | i2c_rx_buffer[13]);
+
+  mpu6050->ax = kalman_filter_update(&mpu6050->kf[0], mpu6050->ax) + mpu6050->ax_offset;
+  mpu6050->ay = kalman_filter_update(&mpu6050->kf[1], mpu6050->ay) + mpu6050->ay_offset;
+  mpu6050->az = kalman_filter_update(&mpu6050->kf[2], mpu6050->az) + mpu6050->az_offset;
+  mpu6050->gx = kalman_filter_update(&mpu6050->kf[3], mpu6050->gx) + mpu6050->gx_offset;
+  mpu6050->gy = kalman_filter_update(&mpu6050->kf[4], mpu6050->gy) + mpu6050->gy_offset;
+  mpu6050->gz = kalman_filter_update(&mpu6050->kf[5], mpu6050->gz) + mpu6050->gz_offset;
+
+  calc_angles(mpu6050);
+}
+
+// https://github.com/lobodol/IMU/blob/master/imu.ino?fbclid=IwAR1bmIn_qUKA1KbK5g8u7M5T1lKf2K4e0y23TLkXcwpcrFv7rZ7KPQ2Gsvo
+void calc_angles(mpu6050_t *mpu6050) {
+  // Angle calculation using integration
+  mpu6050->gyro_angle[X] += (mpu6050->gx / (FREQ * SSF_GYRO));
+  mpu6050->gyro_angle[Y] += (-mpu6050->gy / (FREQ * SSF_GYRO)); // Change sign to match the accelerometer's one
+
+  // Transfer roll to pitch if IMU has yawed
+  mpu6050->gyro_angle[Y] += mpu6050->gyro_angle[X] * sin(mpu6050->gz * (M_PI / (FREQ * SSF_GYRO * 180)));
+  mpu6050->gyro_angle[X] -= mpu6050->gyro_angle[Y] * sin(mpu6050->gz * (M_PI / (FREQ * SSF_GYRO * 180)));
+
+  // Calculate total 3D acceleration vector : √(X² + Y² + Z²)
+  mpu6050->acc_total_vector = sqrt(pow(mpu6050->ax, 2) + pow(mpu6050->ay, 2) + pow(mpu6050->az, 2));
+
+  // To prevent asin to produce a NaN, make sure the input value is within [-1;+1]
+  if (abs(mpu6050->ax) < mpu6050->acc_total_vector) {
+    mpu6050->acc_angle[X] = asin((float)mpu6050->ay / mpu6050->acc_total_vector) * (180 / M_PI); // asin gives angle in radian. Convert to degree multiplying by 180/pi
+  }
+
+  if (abs(mpu6050->ay) < mpu6050->acc_total_vector) {
+    mpu6050->acc_angle[Y] = asin((float)mpu6050->ax / mpu6050->acc_total_vector) * (180 / M_PI);
+  }
+
+  if (mpu6050->initialized == 1) {
+    // Correct the drift of the gyro with the accelerometer
+    mpu6050->gyro_angle[X] = mpu6050->gyro_angle[X] * 0.5 + mpu6050->acc_angle[X] * 0.5;
+    mpu6050->gyro_angle[Y] = mpu6050->gyro_angle[Y] * 0.5 + mpu6050->acc_angle[Y] * 0.5;
+  }
+  else {
+    // At very first start, init gyro angles with accelerometer angles
+    mpu6050->gyro_angle[X] = mpu6050->acc_angle[X];
+    mpu6050->gyro_angle[Y] = mpu6050->acc_angle[Y];
+
+    mpu6050->initialized = 1;
+  }
+
+  // To dampen the pitch and roll angles a complementary filter is used
+  mpu6050->measures[ROLL] =mpu6050-> measures[ROLL] * 0.9 + mpu6050->gyro_angle[X] * 0.1;
+  mpu6050->measures[PITCH] = mpu6050->measures[PITCH] * 0.9 + mpu6050->gyro_angle[Y] * 0.1;
+  mpu6050->measures[YAW] = -mpu6050->gz / SSF_GYRO; // Store the angular motion for this axis
+
+  // Norm [-1, 1]
+  mpu6050->angle_x = -mpu6050->measures[PITCH];
+  mpu6050->angle_y = mpu6050->measures[ROLL];
+  mpu6050->angle_z += mpu6050->measures[YAW]*0.001;
 }
