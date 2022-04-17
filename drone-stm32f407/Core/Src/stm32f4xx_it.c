@@ -46,7 +46,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 4 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
 
 /* USER CODE END PD */
 
@@ -55,25 +55,31 @@ typedef enum {
 
 // Motor PWM values
 #define INIT_SPEED 15 // 10
-#define MIN_SPEED 547 // 572
-#define MAX_SPEED 947 // 1071
-#define MIN_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.25
-#define MAX_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.25
+#define MIN_SPEED 550 // 572
+#define MAX_SPEED 1050 // 1071
+
+#define MIN_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.4
+#define MAX_PROPORTION (MAX_SPEED - MIN_SPEED)*0.4
+#define MIN_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.2
+#define MAX_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.2
+#define MIN_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.4
+#define MAX_DERIVATION (MAX_SPEED - MIN_SPEED)*0.4
 
 // PID
-#define P_PITCH_GAIN 220 //
-#define I_PITCH_GAIN 2 //
-#define D_PITCH_GAIN 80 //
+#define P_PITCH_GAIN 2.00 // 2.00
+#define I_PITCH_GAIN 0.05 // 0.1
+#define I_PITCH_PERIOD 0.1 // 0.005 = 1/FREQ
+#define D_PITCH_GAIN 0.015 // 0.01
 
-#define P_ROLL_GAIN 220 //
-#define I_ROLL_GAIN 2 //
-#define D_ROLL_GAIN 80 //
+#define P_ROLL_GAIN 2.00 // 2.00
+#define I_ROLL_GAIN 0.1 // 0.1
+#define I_ROLL_PERIOD 0.1 // 0.005 = 1/FREQ
+#define D_ROLL_GAIN 0.015 // 0.01
 
-#define P_YAW_GAIN 120 //
-#define I_YAW_GAIN 2 //
-#define D_YAW_GAIN 10 //
-
-#define ACCUMULATION_TIME 0.07 // 0.005 = 1/FREQ
+#define P_YAW_GAIN 0.0 //
+#define I_YAW_GAIN 0.00 //
+#define I_YAW_PERIOD 0.000 // 0.005 = 1/FREQ
+#define D_YAW_GAIN 0.00 // 0.01
 
 #define MAX_LOST_CONN_COUNTER 100
 
@@ -114,15 +120,15 @@ float g_roll = 0;
 float g_yaw = 0;
 
 // UART control
-uint8_t g_P_pitch_gain = P_PITCH_GAIN;
-uint8_t g_I_pitch_gain = I_PITCH_GAIN;
-uint8_t g_D_pitch_gain = D_PITCH_GAIN;
-uint8_t g_P_roll_gain = P_ROLL_GAIN;
-uint8_t g_I_roll_gain = I_ROLL_GAIN;
-uint8_t g_D_roll_gain = D_ROLL_GAIN;
-uint8_t g_P_yaw_gain = P_YAW_GAIN;
-uint8_t g_I_yaw_gain = I_YAW_GAIN;
-uint8_t g_D_yaw_gain = D_YAW_GAIN;
+float g_P_pitch_gain = P_PITCH_GAIN;
+float g_I_pitch_gain = I_PITCH_GAIN;
+float g_D_pitch_gain = D_PITCH_GAIN;
+float g_P_roll_gain = P_ROLL_GAIN;
+float g_I_roll_gain = I_ROLL_GAIN;
+float g_D_roll_gain = D_ROLL_GAIN;
+float g_P_yaw_gain = P_YAW_GAIN;
+float g_I_yaw_gain = I_YAW_GAIN;
+float g_D_yaw_gain = D_YAW_GAIN;
 
 // Monitor
 float monitor[9] = {0};
@@ -323,14 +329,14 @@ void TIM3_IRQHandler(void)
   MS5611_update(&g_ms5611);
 
   // Norm gyro [-1, 1]
-  float gyro_x = limit(g_mpu6050.gx, -2000, 2000) / 2000;
-  float gyro_y = limit(g_mpu6050.gy, -2000, 2000) / 2000;
-  float gyro_z = limit(g_mpu6050.gz, -2000, 2000) / 2000;
+  float gyro_x = g_mpu6050.gx;
+  float gyro_y = g_mpu6050.gy;
+  float gyro_z = g_mpu6050.gz;
 
-  // Norm [-1, 1] and add control terms
-  float angle_x = limit(g_mpu6050.angle_x, -90, 90) / 90 - 0.01*g_pitch;
-  float angle_y = limit(g_mpu6050.angle_y, -90, 90) / 90 - 0.01*g_roll;
-  float angle_z = limit(g_mpu6050.angle_z, -90, 90) / 90 - 0.01*g_yaw;
+  // Add control terms
+  float angle_x = g_mpu6050.angle_x - 0.5*g_pitch;
+  float angle_y = g_mpu6050.angle_y - 0.5*g_roll;
+  float angle_z = g_mpu6050.angle_z - 0.0*g_yaw;
 
   // Move sticks to make it ready to take off
   if (g_thrust <= -99 && g_yaw <= -99
@@ -389,22 +395,22 @@ void TIM3_IRQHandler(void)
 
       break;
     case testing_2:
-      g_P_pitch = angle_x*g_P_pitch_gain;
-      g_I_pitch_accumulated += angle_x*ACCUMULATION_TIME; // 0.005 = 1/FREQ
+      g_P_pitch = limit(angle_x*g_P_pitch_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_I_pitch_accumulated += angle_x*I_PITCH_PERIOD; // 0.005 = 1/FREQ
       g_I_pitch = limit(g_I_pitch_accumulated*g_I_pitch_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_pitch = gyro_y*g_D_pitch_gain;
+      g_D_pitch = limit(gyro_y*g_D_pitch_gain, MIN_DERIVATION, MAX_DERIVATION);
 
-      g_P_roll = angle_y*g_P_roll_gain;
-      g_I_roll_accumulated += angle_y*ACCUMULATION_TIME;
+      g_P_roll = limit(angle_y*g_P_roll_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_I_roll_accumulated += angle_y*I_ROLL_PERIOD;
       g_I_roll = limit(g_I_roll_accumulated*g_I_roll_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_roll = gyro_x*g_D_roll_gain;
+      g_D_roll = limit(gyro_x*g_D_roll_gain, MIN_DERIVATION, MAX_DERIVATION);
 
-      g_P_yaw = angle_z*g_P_yaw_gain;
-      g_I_yaw_accumulated += angle_z*ACCUMULATION_TIME;
+      g_P_yaw = limit(angle_z*g_P_yaw_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_I_yaw_accumulated += angle_z*I_YAW_PERIOD;
       g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_yaw = gyro_z*g_D_yaw_gain;
+      g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_DERIVATION, MAX_DERIVATION);
 
-      int thrust = MIN_SPEED + 3 + g_thrust*3;
+      int thrust = MIN_SPEED + g_thrust*3;
 
       g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
@@ -535,27 +541,27 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   // To know whether this timer is hanging
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
 
-  // Serialise control values
-  static uint8_t g_control_1st_idx = 0;
-  if (g_control[0] == 254) g_control_1st_idx = 1;
-  if (g_control[1] == 254) g_control_1st_idx = 2;
-  if (g_control[2] == 254) g_control_1st_idx = 3;
-  if (g_control[3] == 254) g_control_1st_idx = 4;
-  if (g_control[4] == 254) g_control_1st_idx = 5;
-  if (g_control[5] == 254) g_control_1st_idx = 6;
-  if (g_control[6] == 254) g_control_1st_idx = 7;
-  if (g_control[7] == 254) g_control_1st_idx = 8;
-  if (g_control[8] == 254) g_control_1st_idx = 9;
-  if (g_control[9] == 254) g_control_1st_idx = 0;
-  g_P_pitch_gain = g_control[g_control_1st_idx];
-  g_I_pitch_gain = g_control[(g_control_1st_idx+1)%10];
-  g_D_pitch_gain = g_control[(g_control_1st_idx+2)%10];
-  g_P_roll_gain = g_control[(g_control_1st_idx+3)%10];
-  g_I_roll_gain = g_control[(g_control_1st_idx+4)%10];
-  g_D_roll_gain = g_control[(g_control_1st_idx+5)%10];
-  g_P_yaw_gain = g_control[(g_control_1st_idx+6)%10];
-  g_I_yaw_gain = g_control[(g_control_1st_idx+7)%10];
-  g_D_yaw_gain = g_control[(g_control_1st_idx+8)%10];
+//  // Serialise control values
+//  static uint8_t g_control_1st_idx = 0;
+//  if (g_control[0] == 254) g_control_1st_idx = 1;
+//  if (g_control[1] == 254) g_control_1st_idx = 2;
+//  if (g_control[2] == 254) g_control_1st_idx = 3;
+//  if (g_control[3] == 254) g_control_1st_idx = 4;
+//  if (g_control[4] == 254) g_control_1st_idx = 5;
+//  if (g_control[5] == 254) g_control_1st_idx = 6;
+//  if (g_control[6] == 254) g_control_1st_idx = 7;
+//  if (g_control[7] == 254) g_control_1st_idx = 8;
+//  if (g_control[8] == 254) g_control_1st_idx = 9;
+//  if (g_control[9] == 254) g_control_1st_idx = 0;
+//  g_P_pitch_gain = g_control[g_control_1st_idx];
+//  g_I_pitch_gain = g_control[(g_control_1st_idx+1)%10];
+//  g_D_pitch_gain = g_control[(g_control_1st_idx+2)%10];
+//  g_P_roll_gain = g_control[(g_control_1st_idx+3)%10];
+//  g_I_roll_gain = g_control[(g_control_1st_idx+4)%10];
+//  g_D_roll_gain = g_control[(g_control_1st_idx+5)%10];
+//  g_P_yaw_gain = g_control[(g_control_1st_idx+6)%10];
+//  g_I_yaw_gain = g_control[(g_control_1st_idx+7)%10];
+//  g_D_yaw_gain = g_control[(g_control_1st_idx+8)%10];
 
   // Update monitor
   send_data(monitor[0], monitor[1], monitor[2],

@@ -187,7 +187,7 @@ int main(void)
     flash(2, error);
   }
 
-  MPU6050_set_offset(&g_mpu6050, -422, -783, -61, 288, -128, -32);
+  MPU6050_set_offset(&g_mpu6050, 100, -850, 0, 300, -125, -32);
 
   while (1) {
     int error = MS5611_init(

@@ -165,7 +165,7 @@ void MS5611_calc_altitude(ms5611_t *ms5611) {
   ms5611->fast_pressure = average_filter_update(&ms5611->af, pressure);
 
   // Apply complementary filter
-  ms5611->slow_pressure= ms5611->slow_pressure*0.99 + ms5611->fast_pressure*0.01;
+  ms5611->slow_pressure = ms5611->slow_pressure*0.99 + ms5611->fast_pressure*0.01;
 
   // Fix slow response problem
   float diff = limit(ms5611->fast_pressure - ms5611->slow_pressure, -8, 8);
