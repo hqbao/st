@@ -46,7 +46,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: PRY
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control
 
 /* USER CODE END PD */
 
@@ -58,12 +58,26 @@ typedef enum {
 #define MIN_SPEED 550 // 572
 #define MAX_SPEED 1050 // 1071
 
-#define MIN_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.4
-#define MAX_PROPORTION (MAX_SPEED - MIN_SPEED)*0.4
-#define MIN_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.2
-#define MAX_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.2
-#define MIN_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.4
-#define MAX_DERIVATION (MAX_SPEED - MIN_SPEED)*0.4
+#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.04
+#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.04
+#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
+
+#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.04
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.04
+#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
+
+#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.02
+#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.02
+#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.02
+#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.02
+#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.02
+#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.02
 
 // PID
 #define P_PITCH_GAIN 2.00 // 2.00
@@ -76,12 +90,10 @@ typedef enum {
 #define I_ROLL_PERIOD 0.1 // 0.005 = 1/FREQ
 #define D_ROLL_GAIN 0.015 // 0.01
 
-#define P_YAW_GAIN 0.0 //
-#define I_YAW_GAIN 0.00 //
-#define I_YAW_PERIOD 0.000 // 0.005 = 1/FREQ
-#define D_YAW_GAIN 0.00 // 0.01
-
-#define MAX_LOST_CONN_COUNTER 100
+#define P_YAW_GAIN 1.0 //
+#define I_YAW_GAIN 0.05 //
+#define I_YAW_PERIOD 0.005 // 0.005 = 1/FREQ
+#define D_YAW_GAIN 0.01 // 0.01
 
 /* USER CODE END PM */
 
@@ -113,11 +125,17 @@ float g_sig3 = 0;
 float g_sig4 = 0;
 
 // Remote control
-int32_t pwm_in[16];
+int32_t pwm_in[30];
 float g_thrust = 0;
 float g_pitch = 0;
 float g_roll = 0;
 float g_yaw = 0;
+float g_tune1 = 0;
+float g_tune2 = 0;
+uint8_t g_stick1 = 0; // 1, 2
+uint8_t g_stick2 = 0; // 1, 2, 3
+uint8_t g_stick3 = 0; // 1, 2
+uint8_t g_stick4 = 0; // 1, 2, 3
 
 // UART control
 float g_P_pitch_gain = P_PITCH_GAIN;
@@ -157,19 +175,21 @@ void ctl_motors_speed(uint32_t m1, uint32_t m2,
 
 /* External variables --------------------------------------------------------*/
 extern I2C_HandleTypeDef hi2c1;
+extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim9;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
-extern kalman_filter_t g_filters[14];
+extern kalman_filter_t g_filters[10];
 
 extern mpu6050_t g_mpu6050;
 extern ms5611_t g_ms5611;
 
 // Remote control
-extern int g_conn_lost_counter;
-extern uint8_t g_control[5];
+extern uint8_t g_uart_rx_buffer[10];
 
 extern void console(const char *str);
 extern void send_data(
@@ -318,6 +338,21 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles TIM1 break interrupt and TIM9 global interrupt.
+  */
+void TIM1_BRK_TIM9_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM1_BRK_TIM9_IRQn 0 */
+
+  /* USER CODE END TIM1_BRK_TIM9_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim1);
+  HAL_TIM_IRQHandler(&htim9);
+  /* USER CODE BEGIN TIM1_BRK_TIM9_IRQn 1 */
+
+  /* USER CODE END TIM1_BRK_TIM9_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM3 global interrupt.
   */
 void TIM3_IRQHandler(void)
@@ -345,8 +380,16 @@ void TIM3_IRQHandler(void)
   }
 
   // Keep alive for the fly
-  g_conn_lost_counter += 1;
-  if (g_conn_lost_counter > MAX_LOST_CONN_COUNTER || g_conn_lost_counter < 0) {
+  if (g_stick1 != 2) {
+    g_I_pitch_accumulated = 0;
+    g_I_roll_accumulated = 0;
+    g_I_yaw_accumulated = 0;
+    ctl_motors_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+    fly_mode = init;
+  }
+
+  // Stop if angle too large (crashed)
+  if (angle_x < -60 || angle_x > 60 || angle_y < -60 || angle_y > 60) {
     g_I_pitch_accumulated = 0;
     g_I_roll_accumulated = 0;
     g_I_yaw_accumulated = 0;
@@ -395,20 +438,20 @@ void TIM3_IRQHandler(void)
 
       break;
     case testing_2:
-      g_P_pitch = limit(angle_x*g_P_pitch_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_P_pitch = limit(angle_x*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
       g_I_pitch_accumulated += angle_x*I_PITCH_PERIOD; // 0.005 = 1/FREQ
-      g_I_pitch = limit(g_I_pitch_accumulated*g_I_pitch_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_pitch = limit(gyro_y*g_D_pitch_gain, MIN_DERIVATION, MAX_DERIVATION);
+      g_I_pitch = limit(g_I_pitch_accumulated*g_I_pitch_gain, MIN_PITCH_INTEGRAL, MAX_PITCH_INTEGRAL);
+      g_D_pitch = limit(gyro_y*g_D_pitch_gain, MIN_PITCH_DERIVATION, MAX_PITCH_DERIVATION);
 
-      g_P_roll = limit(angle_y*g_P_roll_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_P_roll = limit(angle_y*g_P_roll_gain, MIN_ROLL_PROPORTION, MAX_ROLL_PROPORTION);
       g_I_roll_accumulated += angle_y*I_ROLL_PERIOD;
-      g_I_roll = limit(g_I_roll_accumulated*g_I_roll_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_roll = limit(gyro_x*g_D_roll_gain, MIN_DERIVATION, MAX_DERIVATION);
+      g_I_roll = limit(g_I_roll_accumulated*g_I_roll_gain, MIN_ROLL_INTEGRAL, MAX_ROLL_INTEGRAL);
+      g_D_roll = limit(gyro_x*g_D_roll_gain, MIN_ROLL_DERIVATION, MAX_ROLL_DERIVATION);
 
-      g_P_yaw = limit(angle_z*g_P_yaw_gain, MIN_PROPORTION, MAX_PROPORTION);
+      g_P_yaw = limit(angle_z*g_P_yaw_gain, MIN_YAW_PROPORTION, MAX_YAW_PROPORTION);
       g_I_yaw_accumulated += angle_z*I_YAW_PERIOD;
-      g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_INTEGRAL, MAX_INTEGRAL);
-      g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_DERIVATION, MAX_DERIVATION);
+      g_I_yaw = limit(g_I_yaw_accumulated*g_I_yaw_gain, MIN_YAW_INTEGRAL, MAX_YAW_INTEGRAL);
+      g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
       int thrust = MIN_SPEED + g_thrust*3;
 
@@ -527,6 +570,20 @@ void USART1_IRQHandler(void)
   /* USER CODE END USART1_IRQn 1 */
 }
 
+/**
+  * @brief This function handles TIM5 global interrupt.
+  */
+void TIM5_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM5_IRQn 0 */
+
+  /* USER CODE END TIM5_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim5);
+  /* USER CODE BEGIN TIM5_IRQn 1 */
+
+  /* USER CODE END TIM5_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
@@ -535,33 +592,30 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  // Update alive status
-  g_conn_lost_counter = 0;
-
   // To know whether this timer is hanging
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
 
 //  // Serialise control values
-//  static uint8_t g_control_1st_idx = 0;
-//  if (g_control[0] == 254) g_control_1st_idx = 1;
-//  if (g_control[1] == 254) g_control_1st_idx = 2;
-//  if (g_control[2] == 254) g_control_1st_idx = 3;
-//  if (g_control[3] == 254) g_control_1st_idx = 4;
-//  if (g_control[4] == 254) g_control_1st_idx = 5;
-//  if (g_control[5] == 254) g_control_1st_idx = 6;
-//  if (g_control[6] == 254) g_control_1st_idx = 7;
-//  if (g_control[7] == 254) g_control_1st_idx = 8;
-//  if (g_control[8] == 254) g_control_1st_idx = 9;
-//  if (g_control[9] == 254) g_control_1st_idx = 0;
-//  g_P_pitch_gain = g_control[g_control_1st_idx];
-//  g_I_pitch_gain = g_control[(g_control_1st_idx+1)%10];
-//  g_D_pitch_gain = g_control[(g_control_1st_idx+2)%10];
-//  g_P_roll_gain = g_control[(g_control_1st_idx+3)%10];
-//  g_I_roll_gain = g_control[(g_control_1st_idx+4)%10];
-//  g_D_roll_gain = g_control[(g_control_1st_idx+5)%10];
-//  g_P_yaw_gain = g_control[(g_control_1st_idx+6)%10];
-//  g_I_yaw_gain = g_control[(g_control_1st_idx+7)%10];
-//  g_D_yaw_gain = g_control[(g_control_1st_idx+8)%10];
+//  static uint8_t g_uart_rx_buffer_1st_idx = 0;
+//  if (g_uart_rx_buffer[0] == 254) g_uart_rx_buffer_1st_idx = 1;
+//  if (g_uart_rx_buffer[1] == 254) g_uart_rx_buffer_1st_idx = 2;
+//  if (g_uart_rx_buffer[2] == 254) g_uart_rx_buffer_1st_idx = 3;
+//  if (g_uart_rx_buffer[3] == 254) g_uart_rx_buffer_1st_idx = 4;
+//  if (g_uart_rx_buffer[4] == 254) g_uart_rx_buffer_1st_idx = 5;
+//  if (g_uart_rx_buffer[5] == 254) g_uart_rx_buffer_1st_idx = 6;
+//  if (g_uart_rx_buffer[6] == 254) g_uart_rx_buffer_1st_idx = 7;
+//  if (g_uart_rx_buffer[7] == 254) g_uart_rx_buffer_1st_idx = 8;
+//  if (g_uart_rx_buffer[8] == 254) g_uart_rx_buffer_1st_idx = 9;
+//  if (g_uart_rx_buffer[9] == 254) g_uart_rx_buffer_1st_idx = 0;
+//  g_P_pitch_gain = g_uart_rx_buffer[g_uart_rx_buffer_1st_idx];
+//  g_I_pitch_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+1)%10];
+//  g_D_pitch_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+2)%10];
+//  g_P_roll_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+3)%10];
+//  g_I_roll_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+4)%10];
+//  g_D_roll_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+5)%10];
+//  g_P_yaw_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+6)%10];
+//  g_I_yaw_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+7)%10];
+//  g_D_yaw_gain = g_uart_rx_buffer[(g_uart_rx_buffer_1st_idx+8)%10];
 
   // Update monitor
   send_data(monitor[0], monitor[1], monitor[2],
@@ -570,74 +624,180 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_SET) {
-      pwm_in[0] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+  if (htim->Instance == TIM4) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_1:
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_SET) {
+          pwm_in[0] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_RESET) {
+          pwm_in[1] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+          int value = pwm_in[1] - pwm_in[0];
+          if (value >= 200 && value < 400) {
+            pwm_in[2] = value;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_2:
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_SET) {
+          pwm_in[3] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_RESET) {
+          pwm_in[4] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+          int value = pwm_in[4] - pwm_in[3];
+          if (value >= 200 && value < 400) {
+            pwm_in[5] = value;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_3:
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET) {
+          pwm_in[6] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_RESET) {
+          pwm_in[7] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
+          int value = pwm_in[7] - pwm_in[6];
+          if (value >= 200 && value < 400) {
+            pwm_in[8] = value;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_4:
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET) {
+          pwm_in[9] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_RESET) {
+          pwm_in[10] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
+          int value = pwm_in[10] - pwm_in[9];
+          if (value >= 200 && value < 400) {
+            pwm_in[11] = value;
+          }
+        }
+        break;
+      default:
+        break;
     }
 
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_RESET) {
-      pwm_in[1] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
-      int value = pwm_in[1] - pwm_in[0];
-      if (value >= 200 && value < 400) {
-        pwm_in[2] = value;
-      }
-    }
+    g_thrust = kalman_filter_update(&g_filters[0], pwm_in[5] - 300);
+    g_yaw = kalman_filter_update(&g_filters[1], pwm_in[2] - 300);
+    g_pitch = kalman_filter_update(&g_filters[2], pwm_in[8] - 300);
+    g_roll = kalman_filter_update(&g_filters[3], pwm_in[11] - 300);
   }
 
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_SET) {
-      pwm_in[3] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+  if (htim->Instance == TIM9) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_1:
+        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_SET) {
+          pwm_in[12] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_1);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_RESET) {
+          pwm_in[13] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_1);
+          int value = pwm_in[13] - pwm_in[12];
+          if (value >= 200 && value < 400) {
+            pwm_in[14] = value;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_2:
+        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_6) == GPIO_PIN_SET) {
+          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_2);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_6) == GPIO_PIN_RESET) {
+          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_2);
+          int value = pwm_in[16] - pwm_in[15];
+          if (value >= 200 && value < 400) {
+            pwm_in[17] = value;
+          }
+        }
+        break;
+      default:
+        break;
     }
 
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_RESET) {
-      pwm_in[4] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
-      int value = pwm_in[4] - pwm_in[3];
-      if (value >= 200 && value < 400) {
-        pwm_in[5] = value;
-      }
-    }
+    g_tune1 = kalman_filter_update(&g_filters[4], pwm_in[17] - 300);
+    g_tune2 = kalman_filter_update(&g_filters[5], pwm_in[14] - 300);
   }
 
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET) {
-      pwm_in[6] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
+  if (htim->Instance == TIM5) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_1:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) {
+          pwm_in[18] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_1);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET) {
+          pwm_in[19] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_1);
+          int value = pwm_in[19] - pwm_in[18];
+          if (value >= 200 && value < 400) { // valid range [200, 400)
+            pwm_in[20] = value > 300 ? 2 : 1;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_2:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == GPIO_PIN_SET) {
+          pwm_in[21] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == GPIO_PIN_RESET) {
+          pwm_in[22] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+          int value = pwm_in[22] - pwm_in[21];
+          if (value >= 200 && value < 400) { // valid range [200, 400)
+            pwm_in[23] = value < 250 ? 1 : (value > 350 ? 3 : 2);
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_3:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_SET) {
+          pwm_in[24] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_RESET) {
+          pwm_in[25] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+          int value = pwm_in[25] - pwm_in[24];
+          if (value >= 200 && value < 400) { // valid range [200, 400)
+            pwm_in[26] = value < 250 ? 1 : (value > 350 ? 3 : 2);
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_4:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+          pwm_in[27] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_RESET) {
+          pwm_in[28] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+          int value = pwm_in[28] - pwm_in[27];
+          if (value >= 200 && value < 400) { // valid range [200, 400)
+            pwm_in[29] = value > 300 ? 2 : 1;
+          }
+        }
+        break;
+      default:
+        break;
     }
 
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_RESET) {
-      pwm_in[7] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
-      int value = pwm_in[7] - pwm_in[6];
-      if (value >= 200 && value < 400) {
-        pwm_in[8] = value;
-      }
-    }
+    g_stick1 = pwm_in[20];
+    g_stick2 = pwm_in[23];
+    g_stick3 = pwm_in[26];
+    g_stick4 = pwm_in[29];
   }
-
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET) {
-      pwm_in[9] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
-    }
-
-    if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_RESET) {
-      pwm_in[10] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
-      int value = pwm_in[10] - pwm_in[9];
-      if (value >= 200 && value < 400) {
-        pwm_in[11] = value;
-      }
-    }
-  }
-
-  g_thrust = kalman_filter_update(&g_filters[0], pwm_in[5] - 300);
-  g_yaw = kalman_filter_update(&g_filters[1], pwm_in[2] - 300);
-  g_pitch = kalman_filter_update(&g_filters[2], pwm_in[8] - 300);
-  g_roll = kalman_filter_update(&g_filters[3], pwm_in[11] - 300);
 
 #if MONITOR == 4
   monitor[0] = g_thrust;
   monitor[1] = g_yaw;
-  monitor[2] = 0;
+  monitor[2] = g_tune1;
   monitor[3] = g_pitch;
   monitor[4] = g_roll;
-  monitor[5] = 0;
+  monitor[5] = g_tune2;
+  monitor[6] = g_stick1+g_stick4;
+  monitor[7] = g_stick2;
+  monitor[8] = g_stick3;
 #endif
 }
 
