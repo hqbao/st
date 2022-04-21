@@ -38,8 +38,7 @@ typedef enum {
   holding,
   moving,
   landing,
-  testing_1,
-  testing_2
+  testing
 } FlyMode;
 
 /* USER CODE END TD */
@@ -84,17 +83,17 @@ typedef enum {
 #define P_PITCH_GAIN 1.2 // 1.2
 #define I_PITCH_GAIN 0.01 // 0.01
 #define I_PITCH_PERIOD 0.5 // 2.0
-#define D_PITCH_GAIN 0.5 // 0.008
+#define D_PITCH_GAIN 0.5 // 0.05
 
 #define P_ROLL_GAIN 1.2 // 1.2
 #define I_ROLL_GAIN 0.01 // 0.01
 #define I_ROLL_PERIOD 0.5 // 2.0
-#define D_ROLL_GAIN 0.5 // 0.008
+#define D_ROLL_GAIN 0.5 // 0.05
 
-#define P_YAW_GAIN 0.001 // 1.0
-#define I_YAW_GAIN 0.0 // 0.0
-#define I_YAW_PERIOD 0.0 // 0.0
-#define D_YAW_GAIN 0.05 // 0.01
+#define P_YAW_GAIN 0.001
+#define I_YAW_GAIN 0.0 // No use due to drifting P
+#define I_YAW_PERIOD 0.0 // No use due to drifting P
+#define D_YAW_GAIN 0.05
 
 /* USER CODE END PM */
 
@@ -165,13 +164,15 @@ float monitor[9] = {0};
 
 extern float limit(float number, float min, float max);
 
-void ctl_motors_speed(uint32_t m1, uint32_t m2,
+void set_speed(uint32_t m1, uint32_t m2,
     uint32_t m3, uint32_t m4) {
   TIM1->CCR1 = m1;
   TIM1->CCR2 = m2;
   TIM1->CCR3 = m3;
   TIM1->CCR4 = m4;
 }
+
+void fly(void);
 
 /* USER CODE END PFP */
 
@@ -365,169 +366,7 @@ void TIM1_BRK_TIM9_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-
-  // Activate reading
-  MPU6050_update(&g_mpu6050);
-  MS5611_update(&g_ms5611);
-
-  float gyro_x = g_mpu6050.gx;
-  float gyro_y = g_mpu6050.gy;
-  float gyro_z = g_mpu6050.gz;
-
-  // Add control terms
-  float angle_y = g_mpu6050.angle_y - 0.5*g_pitch;
-  float angle_x = g_mpu6050.angle_x - 0.5*g_roll;
-  float angle_z = g_mpu6050.angle_z - 0.0*g_yaw;
-
-  // Move sticks to make it ready to take off
-  if (g_thrust <= -99 && g_yaw <= -99
-      && g_pitch <= -99 && g_roll >= 98) {
-    fly_mode = ready;
-  }
-
-  // Keep alive for the fly
-  if (g_stick1 != 2) {
-    g_I_pitch_accumulated = 0;
-    g_I_roll_accumulated = 0;
-    g_I_yaw_accumulated = 0;
-    ctl_motors_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
-    fly_mode = init;
-  }
-
-  // Stop if angle too large (crashed)
-//  if (angle_x < -60 || angle_x > 60 || angle_y < -60 || angle_y > 60) {
-//    g_I_pitch_accumulated = 0;
-//    g_I_roll_accumulated = 0;
-//    g_I_yaw_accumulated = 0;
-//    ctl_motors_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
-//    fly_mode = init;
-//  }
-
-  switch (fly_mode) {
-    case init:
-      g_P_pitch_gain = P_PITCH_GAIN;
-      g_I_pitch_gain = I_PITCH_GAIN;
-      g_I_pitch_period = I_PITCH_PERIOD;
-      g_D_pitch_gain = D_PITCH_GAIN;
-      g_P_roll_gain = P_ROLL_GAIN;
-      g_I_roll_gain = I_ROLL_GAIN;
-      g_I_roll_period = I_ROLL_PERIOD;
-      g_D_roll_gain = D_ROLL_GAIN;
-      g_P_yaw_gain = P_YAW_GAIN;
-      g_I_yaw_gain = I_YAW_GAIN;
-      g_I_yaw_period = I_YAW_PERIOD;
-      g_D_yaw_gain = D_YAW_GAIN;
-
-      g_I_pitch_accumulated = 0;
-      g_I_roll_accumulated = 0;
-      g_I_yaw_accumulated = 0;
-
-      ctl_motors_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
-      break;
-    case ready:
-      g_I_pitch_accumulated = 0;
-      g_I_roll_accumulated = 0;
-      g_I_yaw_accumulated = 0;
-
-      ctl_motors_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
-      if (g_thrust > 0) {
-        fly_mode = testing_2;
-      }
-
-      break;
-    case holding:
-      ctl_motors_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
-      break;
-    case moving:
-      ctl_motors_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
-      break;
-    case landing:
-      ctl_motors_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
-      break;
-    case testing_1:
-      g_sig1 = MIN_SPEED + g_thrust;
-      g_sig2 = MIN_SPEED + g_thrust;
-      g_sig3 = MIN_SPEED + g_thrust;
-      g_sig4 = MIN_SPEED + g_thrust;
-      ctl_motors_speed(g_sig1, g_sig2, g_sig3, g_sig4);
-
-      if (g_thrust <= -99) {
-        fly_mode = init;
-      }
-
-      break;
-    case testing_2:
-      g_P_pitch = limit(angle_y*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
-      g_I_pitch_accumulated += angle_y*I_PITCH_PERIOD; // 0.005 = 1/FREQ
-      g_I_pitch_accumulated = limit(g_I_pitch_accumulated, MIN_PITCH_INTEGRAL/g_I_pitch_gain, MAX_PITCH_INTEGRAL/g_I_pitch_gain);
-      g_I_pitch = g_I_pitch_accumulated*g_I_pitch_gain;
-      g_D_pitch = limit(gyro_x*g_D_pitch_gain, MIN_PITCH_DERIVATION, MAX_PITCH_DERIVATION);
-
-      g_P_roll = limit(angle_x*g_P_roll_gain, MIN_ROLL_PROPORTION, MAX_ROLL_PROPORTION);
-      g_I_roll_accumulated += angle_x*I_ROLL_PERIOD;
-      g_I_roll_accumulated = limit(g_I_roll_accumulated, MIN_ROLL_INTEGRAL/g_I_roll_gain, MAX_ROLL_INTEGRAL/g_I_roll_gain);
-      g_I_roll = g_I_roll_accumulated*g_I_roll_gain;
-      g_D_roll = limit(gyro_y*g_D_roll_gain, MIN_ROLL_DERIVATION, MAX_ROLL_DERIVATION);
-
-      g_P_yaw = limit(angle_z*g_P_yaw_gain, MIN_YAW_PROPORTION, MAX_YAW_PROPORTION);
-      g_I_yaw_accumulated += angle_z*I_YAW_PERIOD;
-      g_I_yaw_accumulated = limit(g_I_yaw_accumulated, MIN_YAW_INTEGRAL/g_I_yaw_gain, MAX_YAW_INTEGRAL/g_I_yaw_gain);
-      g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
-      g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
-
-      int thrust = MIN_SPEED + (int)(20.0f*sqrt(g_thrust));
-
-      g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-
-      g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
-      g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
-      g_sig3 = limit(g_sig3, MIN_SPEED, MAX_SPEED);
-      g_sig4 = limit(g_sig4, MIN_SPEED, MAX_SPEED);
-
-      ctl_motors_speed(g_sig1, g_sig2, g_sig3, g_sig4);
-
-      if (g_thrust <= -99) {
-        fly_mode = init;
-      }
-
-      break;
-  }
-
-#if MONITOR == 1
-  monitor[0] = angle_x;
-  monitor[1] = angle_y;
-  monitor[2] = angle_z;
-  monitor[3] = gyro_x;
-  monitor[4] = gyro_y;
-  monitor[5] = gyro_z;
-  monitor[6] = (float)g_ms5611.P/100.f;
-  monitor[7] = g_ms5611.fast_pressure;
-  monitor[8] = g_ms5611.slow_pressure;
-#endif
-
-#if MONITOR == 2
-  monitor[0] = g_P_pitch;
-  monitor[1] = g_I_pitch;
-  monitor[2] = g_D_pitch;
-  monitor[3] = g_P_roll;
-  monitor[4] = g_I_roll;
-  monitor[5] = g_D_roll;
-  monitor[6] = g_P_yaw;
-  monitor[7] = g_I_yaw;
-  monitor[8] = g_D_yaw;
-#endif
-
-#if MONITOR == 3
-  monitor[0] = g_sig1;
-  monitor[1] = g_sig2;
-  monitor[2] = g_sig1 > g_sig2 ? g_sig2 : g_sig1;
-  monitor[3] = g_sig3;
-  monitor[4] = g_sig4;
-  monitor[5] = g_sig3 > g_sig4 ? g_sig4 : g_sig3;
-#endif
+  fly();
 
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
@@ -796,19 +635,19 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 
       switch (g_stick2) {
         case 1: // Tuning P
-//          g_P_pitch_gain = limit(g_P_pitch_gain + add / 10, 0, 5);
-//          g_P_roll_gain = limit(g_P_roll_gain + add / 10, 0, 5);
-          g_P_yaw_gain = limit(g_P_yaw_gain + add / 100, 0, 0.5);
+          g_P_pitch_gain = limit(g_P_pitch_gain + add / 10, 0, 5);
+          g_P_roll_gain = limit(g_P_roll_gain + add / 10, 0, 5);
+//          g_P_yaw_gain = limit(g_P_yaw_gain + add / 100, 0, 0.5);
           break;
         case 2: // Tuning I
-//          g_I_pitch_period = limit(g_I_pitch_period + add / 100, 0, 0.5);
-//          g_I_roll_period = limit(g_I_roll_period + add / 100, 0, 0.5);
-          g_I_yaw_period = limit(g_I_yaw_period + add / 100, 0, 0.5);
+          g_I_pitch_period = limit(g_I_pitch_period + add / 100, 0, 0.5);
+          g_I_roll_period = limit(g_I_roll_period + add / 100, 0, 0.5);
+//          g_I_yaw_period = limit(g_I_yaw_period + add / 100, 0, 0.5);
           break;
         case 3: // Tuning D
-//          g_D_pitch_gain = limit(g_D_pitch_gain + add / 1000, 0, 0.05);
-//          g_D_roll_gain = limit(g_D_roll_gain + add / 1000, 0, 0.05);
-          g_D_yaw_gain = limit(g_D_yaw_gain + add / 10000, 0, 0.005);
+          g_D_pitch_gain = limit(g_D_pitch_gain + add / 100, 0, 0.5);
+          g_D_roll_gain = limit(g_D_roll_gain + add / 100, 0, 0.5);
+//          g_D_yaw_gain = limit(g_D_yaw_gain + add / 10000, 0, 0.005);
           break;
         default:
           break;
@@ -838,6 +677,166 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
   monitor[6] = g_D_pitch_gain;
   monitor[7] = g_D_roll_gain;
   monitor[8] = g_D_yaw_gain;
+#endif
+}
+
+void fly() {
+  // Update from sensors
+  MPU6050_update(&g_mpu6050);
+  MS5611_update(&g_ms5611);
+
+  float angle_x = g_mpu6050.angle_x;
+  float angle_y = g_mpu6050.angle_y;
+  float angle_z = g_mpu6050.angle_z;
+  float gyro_x = g_mpu6050.gx;
+  float gyro_y = g_mpu6050.gy;
+  float gyro_z = g_mpu6050.gz;
+
+  // Add remote control bias
+  angle_y -= 0.5*g_pitch;
+  angle_x -= 0.5*g_roll;
+  angle_z -= 0.0*g_yaw;
+
+  // Keep alive for the fly
+  if (g_stick1 != 2) {
+    fly_mode = init;
+  }
+
+  switch (fly_mode) {
+    case init:
+      g_P_pitch_gain = P_PITCH_GAIN;
+      g_I_pitch_gain = I_PITCH_GAIN;
+      g_I_pitch_period = I_PITCH_PERIOD;
+      g_D_pitch_gain = D_PITCH_GAIN;
+      g_P_roll_gain = P_ROLL_GAIN;
+      g_I_roll_gain = I_ROLL_GAIN;
+      g_I_roll_period = I_ROLL_PERIOD;
+      g_D_roll_gain = D_ROLL_GAIN;
+      g_P_yaw_gain = P_YAW_GAIN;
+      g_I_yaw_gain = I_YAW_GAIN;
+      g_I_yaw_period = I_YAW_PERIOD;
+      g_D_yaw_gain = D_YAW_GAIN;
+
+      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+
+      // Move sticks to make it ready to take off
+      if (g_thrust <= -99 && g_yaw <= -99
+          && g_pitch <= -99 && g_roll >= 98) {
+        fly_mode = ready;
+      }
+
+      break;
+    case ready:
+      // Reset accumulated integral
+      g_I_pitch_accumulated = 0;
+      g_I_roll_accumulated = 0;
+      g_I_yaw_accumulated = 0;
+
+      set_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
+
+      // Switch to fly mode
+      if (g_thrust > 0) {
+        fly_mode = moving;
+      }
+
+      break;
+    case holding:
+      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+      break;
+    case moving:
+      g_P_pitch = limit(angle_y*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
+      g_I_pitch_accumulated += angle_y*I_PITCH_PERIOD; // 0.005 = 1/FREQ
+      g_I_pitch_accumulated = limit(g_I_pitch_accumulated, MIN_PITCH_INTEGRAL/g_I_pitch_gain, MAX_PITCH_INTEGRAL/g_I_pitch_gain);
+      g_I_pitch = g_I_pitch_accumulated*g_I_pitch_gain;
+      g_D_pitch = limit(gyro_x*g_D_pitch_gain, MIN_PITCH_DERIVATION, MAX_PITCH_DERIVATION);
+
+      g_P_roll = limit(angle_x*g_P_roll_gain, MIN_ROLL_PROPORTION, MAX_ROLL_PROPORTION);
+      g_I_roll_accumulated += angle_x*I_ROLL_PERIOD;
+      g_I_roll_accumulated = limit(g_I_roll_accumulated, MIN_ROLL_INTEGRAL/g_I_roll_gain, MAX_ROLL_INTEGRAL/g_I_roll_gain);
+      g_I_roll = g_I_roll_accumulated*g_I_roll_gain;
+      g_D_roll = limit(gyro_y*g_D_roll_gain, MIN_ROLL_DERIVATION, MAX_ROLL_DERIVATION);
+
+      g_P_yaw = limit(angle_z*g_P_yaw_gain, MIN_YAW_PROPORTION, MAX_YAW_PROPORTION);
+      g_I_yaw_accumulated += angle_z*I_YAW_PERIOD;
+      g_I_yaw_accumulated = limit(g_I_yaw_accumulated, MIN_YAW_INTEGRAL/g_I_yaw_gain, MAX_YAW_INTEGRAL/g_I_yaw_gain);
+      g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
+      g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
+
+      int thrust = MIN_SPEED + (int)(20.0f*sqrt(g_thrust));
+
+      g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+
+      g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
+      g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
+      g_sig3 = limit(g_sig3, MIN_SPEED, MAX_SPEED);
+      g_sig4 = limit(g_sig4, MIN_SPEED, MAX_SPEED);
+
+      set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
+
+      // Pull down the stick to stop
+      if (g_thrust <= -99) {
+        fly_mode = init;
+      }
+
+      // Stop if angle too large (crashed)
+      if (angle_x < -60 || angle_x > 60 || angle_y < -60 || angle_y > 60) {
+        fly_mode = init;
+      }
+
+      break;
+      break;
+    case landing:
+      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+      break;
+    case testing:
+      g_sig1 = MIN_SPEED + g_thrust;
+      g_sig2 = MIN_SPEED + g_thrust;
+      g_sig3 = MIN_SPEED + g_thrust;
+      g_sig4 = MIN_SPEED + g_thrust;
+
+      set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
+
+      if (g_thrust <= -99) {
+        fly_mode = init;
+      }
+
+      break;
+  }
+
+#if MONITOR == 1
+  monitor[0] = angle_x;
+  monitor[1] = angle_y;
+  monitor[2] = angle_z;
+  monitor[3] = gyro_x;
+  monitor[4] = gyro_y;
+  monitor[5] = gyro_z;
+  monitor[6] = g_ms5611.altitude;
+  monitor[7] = g_ms5611.altitude;
+  monitor[8] = g_ms5611.altitude;
+#endif
+
+#if MONITOR == 2
+  monitor[0] = g_P_pitch;
+  monitor[1] = g_I_pitch;
+  monitor[2] = g_D_pitch;
+  monitor[3] = g_P_roll;
+  monitor[4] = g_I_roll;
+  monitor[5] = g_D_roll;
+  monitor[6] = g_P_yaw;
+  monitor[7] = g_I_yaw;
+  monitor[8] = g_D_yaw;
+#endif
+
+#if MONITOR == 3
+  monitor[0] = g_sig1;
+  monitor[1] = g_sig2;
+  monitor[2] = g_sig1 > g_sig2 ? g_sig2 : g_sig1;
+  monitor[3] = g_sig3;
+  monitor[4] = g_sig4;
+  monitor[5] = g_sig3 > g_sig4 ? g_sig4 : g_sig3;
 #endif
 }
 
