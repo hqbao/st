@@ -164,12 +164,12 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
   }
   if (counter >= 5) return 13;
 
-  kalman_filter_init(&mpu6050->kf[0], 2, 2, 0.01); // Accel x
-  kalman_filter_init(&mpu6050->kf[1], 2, 2, 0.01); // Accel y
-  kalman_filter_init(&mpu6050->kf[2], 2, 2, 0.01); // Accel z
-  kalman_filter_init(&mpu6050->kf[3], 2, 2, 0.01); // Gyro x
-  kalman_filter_init(&mpu6050->kf[4], 2, 2, 0.01); // Gyro Y
-  kalman_filter_init(&mpu6050->kf[5], 2, 2, 0.01); // Gyro z
+  kalman_filter_init(&mpu6050->kf[0], 2, 2, 0.1); // Accel x
+  kalman_filter_init(&mpu6050->kf[1], 2, 2, 0.1); // Accel y
+  kalman_filter_init(&mpu6050->kf[2], 2, 2, 0.1); // Accel z
+  kalman_filter_init(&mpu6050->kf[3], 2, 2, 0.1); // Gyro x
+  kalman_filter_init(&mpu6050->kf[4], 2, 2, 0.1); // Gyro Y
+  kalman_filter_init(&mpu6050->kf[5], 2, 2, 0.1); // Gyro z
 
   // For angle calculation
   memset(mpu6050->gyro_angle, 0, 3 * sizeof(float));
