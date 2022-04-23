@@ -1,17 +1,18 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    stm32f4xx_it.c
+  * @file    stm32h7xx_it.c
   * @brief   Interrupt Service Routines.
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
+  * <h2><center>&copy; Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
   *
   ******************************************************************************
   */
@@ -19,10 +20,11 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32f4xx_it.h"
+#include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include <math.h>
 #include "kalman.h"
 #include "gy86.h"
 
@@ -45,38 +47,43 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning
+
 // Motor PWM values
-#define INIT_SPEED 100 // 100
-#define MIN_SPEED 560 // 555
-#define MAX_SPEED 1010 // 1071
+#define INIT_SPEED 100
+#define MIN_SPEED 1400
+#define MAX_SPEED 2400
+
+#define MIN_THROTTLE -199
+#define MIN_YAW -199
+#define MIN_PITCH -199
+#define MIN_ROLL -199
 
 #define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.04
-#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.04
-#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.2
-#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.2
+#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
+#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
+#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
 
 #define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.04
-#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.04
-#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.2
-#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.2
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
+#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
 
-#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.02
-#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.02
-#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.02
-#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.02
-#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.02
-#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.02
+#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.01
+#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.01
+#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.01
+#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.01
+#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.01
+#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.01
 
 // PID
 #define P_PITCH_GAIN 1.2
@@ -125,16 +132,16 @@ float g_sig4 = 0;
 
 // Remote control
 int32_t pwm_in[30];
-float g_thrust = 0;
+float g_throttle = 0;
 float g_pitch = 0;
 float g_roll = 0;
 float g_yaw = 0;
 float g_tune1 = 0;
 float g_tune2 = 0;
-uint8_t g_stick1 = 0; // 1, 2
-uint8_t g_stick2 = 0; // 1, 2, 3
-uint8_t g_stick3 = 0; // 1, 2, 3
-uint8_t g_stick4 = 0; // 1, 2
+int g_stick1 = 0; // 1, 2
+int g_stick2 = 0; // 1, 2, 3
+int g_stick3 = 0; // 1, 2, 3
+int g_stick4 = 0; // 1, 2
 
 // Remote control
 float g_P_pitch_gain = P_PITCH_GAIN;
@@ -161,14 +168,12 @@ float monitor[9] = {0};
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 
-extern float limit(float number, float min, float max);
-
 void set_speed(uint32_t m1, uint32_t m2,
     uint32_t m3, uint32_t m4) {
-  TIM1->CCR1 = m1;
-  TIM1->CCR2 = m2;
-  TIM1->CCR3 = m3;
-  TIM1->CCR4 = m4;
+  TIM2->CCR1 = m1;
+  TIM2->CCR2 = m2;
+  TIM2->CCR3 = m3;
+  TIM2->CCR4 = m4;
 }
 
 void fly(void);
@@ -181,16 +186,15 @@ void fly(void);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern I2C_HandleTypeDef hi2c1;
-extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
-extern TIM_HandleTypeDef htim9;
+extern TIM_HandleTypeDef htim6;
+extern TIM_HandleTypeDef htim7;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
-extern kalman_filter_t g_filters[10];
+extern average_filter_t g_af[10];
 
 extern mpu6050_t g_mpu6050;
 extern ms5611_t g_ms5611;
@@ -198,6 +202,7 @@ extern ms5611_t g_ms5611;
 // Remote control
 extern uint8_t g_uart_rx_buffer[10];
 
+extern float limit(float number, float min, float max);
 extern void console(const char *str);
 extern void send_data(
   float x1, float x2, float x3,
@@ -207,7 +212,7 @@ extern void send_data(
 /* USER CODE END EV */
 
 /******************************************************************************/
-/*           Cortex-M4 Processor Interruption and Exception Handlers          */
+/*           Cortex Processor Interruption and Exception Handlers          */
 /******************************************************************************/
 /**
   * @brief This function handles Non maskable interrupt.
@@ -338,26 +343,11 @@ void SysTick_Handler(void)
 }
 
 /******************************************************************************/
-/* STM32F4xx Peripheral Interrupt Handlers                                    */
+/* STM32H7xx Peripheral Interrupt Handlers                                    */
 /* Add here the Interrupt Handlers for the used peripherals.                  */
 /* For the available peripheral interrupt handler names,                      */
-/* please refer to the startup file (startup_stm32f4xx.s).                    */
+/* please refer to the startup file (startup_stm32h7xx.s).                    */
 /******************************************************************************/
-
-/**
-  * @brief This function handles TIM1 break interrupt and TIM9 global interrupt.
-  */
-void TIM1_BRK_TIM9_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM1_BRK_TIM9_IRQn 0 */
-
-  /* USER CODE END TIM1_BRK_TIM9_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim1);
-  HAL_TIM_IRQHandler(&htim9);
-  /* USER CODE BEGIN TIM1_BRK_TIM9_IRQn 1 */
-
-  /* USER CODE END TIM1_BRK_TIM9_IRQn 1 */
-}
 
 /**
   * @brief This function handles TIM3 global interrupt.
@@ -365,7 +355,6 @@ void TIM1_BRK_TIM9_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-  fly();
 
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
@@ -386,34 +375,6 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 1 */
 
   /* USER CODE END TIM4_IRQn 1 */
-}
-
-/**
-  * @brief This function handles I2C1 event interrupt.
-  */
-void I2C1_EV_IRQHandler(void)
-{
-  /* USER CODE BEGIN I2C1_EV_IRQn 0 */
-
-  /* USER CODE END I2C1_EV_IRQn 0 */
-  HAL_I2C_EV_IRQHandler(&hi2c1);
-  /* USER CODE BEGIN I2C1_EV_IRQn 1 */
-
-  /* USER CODE END I2C1_EV_IRQn 1 */
-}
-
-/**
-  * @brief This function handles I2C1 error interrupt.
-  */
-void I2C1_ER_IRQHandler(void)
-{
-  /* USER CODE BEGIN I2C1_ER_IRQn 0 */
-
-  /* USER CODE END I2C1_ER_IRQn 0 */
-  HAL_I2C_ER_IRQHandler(&hi2c1);
-  /* USER CODE BEGIN I2C1_ER_IRQn 1 */
-
-  /* USER CODE END I2C1_ER_IRQn 1 */
 }
 
 /**
@@ -444,16 +405,45 @@ void TIM5_IRQHandler(void)
   /* USER CODE END TIM5_IRQn 1 */
 }
 
+/**
+  * @brief This function handles TIM6 global interrupt, DAC1_CH1 and DAC1_CH2 underrun error interrupts.
+  */
+void TIM6_DAC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
+
+  /* USER CODE END TIM6_DAC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim6);
+  /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
+
+  /* USER CODE END TIM6_DAC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM7 global interrupt.
+  */
+void TIM7_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM7_IRQn 0 */
+
+  fly();
+
+  /* USER CODE END TIM7_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim7);
+  /* USER CODE BEGIN TIM7_IRQn 1 */
+
+  /* USER CODE END TIM7_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
-  // To know whether this timer is hanging
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   // To know whether this timer is hanging
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
 
   // Update monitor
   send_data(monitor[0], monitor[1], monitor[2],
@@ -462,56 +452,56 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-  if (htim->Instance == TIM4) {
+  if (htim->Instance == TIM3) {
     switch (htim->Channel) {
       case HAL_TIM_ACTIVE_CHANNEL_1:
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_SET) {
-          pwm_in[0] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_SET) {
+          pwm_in[0] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_1);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_RESET) {
-          pwm_in[1] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET) {
+          pwm_in[1] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_1);
           int value = pwm_in[1] - pwm_in[0];
-          if (value >= 200 && value < 400) {
+          if (value >= 400 && value <= 798) { // [400, 798]
             pwm_in[2] = value;
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_2:
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_SET) {
-          pwm_in[3] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7) == GPIO_PIN_SET) {
+          pwm_in[3] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_2);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_RESET) {
-          pwm_in[4] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7) == GPIO_PIN_RESET) {
+          pwm_in[4] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_2);
           int value = pwm_in[4] - pwm_in[3];
-          if (value >= 200 && value < 400) {
+          if (value >= 400 && value <= 798) {
             pwm_in[5] = value;
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_3:
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET) {
-          pwm_in[6] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0) == GPIO_PIN_SET) {
+          pwm_in[6] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_3);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_RESET) {
-          pwm_in[7] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0) == GPIO_PIN_RESET) {
+          pwm_in[7] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_3);
           int value = pwm_in[7] - pwm_in[6];
-          if (value >= 200 && value < 400) {
+          if (value >= 400 && value <= 798) {
             pwm_in[8] = value;
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_4:
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET) {
-          pwm_in[9] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == GPIO_PIN_SET) {
+          pwm_in[9] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_4);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_RESET) {
-          pwm_in[10] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == GPIO_PIN_RESET) {
+          pwm_in[10] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_4);
           int value = pwm_in[10] - pwm_in[9];
-          if (value >= 200 && value < 400) {
+          if (value >= 400 && value <= 798) {
             pwm_in[11] = value;
           }
         }
@@ -520,99 +510,63 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         break;
     }
 
-    g_thrust = kalman_filter_update(&g_filters[0], pwm_in[5] - 300);
-    g_yaw = kalman_filter_update(&g_filters[1], pwm_in[2] - 300);
-    g_pitch = kalman_filter_update(&g_filters[2], pwm_in[8] - 300);
-    g_roll = kalman_filter_update(&g_filters[3], pwm_in[11] - 300);
+    g_throttle = average_filter_update(&g_af[0], pwm_in[5] - 599);
+    g_yaw = average_filter_update(&g_af[1], pwm_in[2] - 599);
+    g_pitch = average_filter_update(&g_af[2], pwm_in[8] - 599);
+    g_roll = average_filter_update(&g_af[3], pwm_in[11] - 599);
   }
 
-  if (htim->Instance == TIM9) {
+  if (htim->Instance == TIM4) {
     switch (htim->Channel) {
       case HAL_TIM_ACTIVE_CHANNEL_1:
-        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_SET) {
-          pwm_in[12] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_1);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_SET) {
+          pwm_in[18] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_RESET) {
-          pwm_in[13] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_1);
-          int value = pwm_in[13] - pwm_in[12];
-          if (value >= 200 && value < 400) {
-            pwm_in[14] = value;
-          }
-        }
-        break;
-      case HAL_TIM_ACTIVE_CHANNEL_2:
-        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_6) == GPIO_PIN_SET) {
-          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_2);
-        }
-
-        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_6) == GPIO_PIN_RESET) {
-          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim9, TIM_CHANNEL_2);
-          int value = pwm_in[16] - pwm_in[15];
-          if (value >= 200 && value < 400) {
-            pwm_in[17] = value;
-          }
-        }
-        break;
-      default:
-        break;
-    }
-
-    g_tune1 = kalman_filter_update(&g_filters[4], pwm_in[17] - 300);
-    g_tune2 = kalman_filter_update(&g_filters[5], pwm_in[14] - 300);
-  }
-
-  if (htim->Instance == TIM5) {
-    switch (htim->Channel) {
-      case HAL_TIM_ACTIVE_CHANNEL_1:
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) {
-          pwm_in[18] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_1);
-        }
-
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET) {
-          pwm_in[19] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_1);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_RESET) {
+          pwm_in[19] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
           int value = pwm_in[19] - pwm_in[18];
-          if (value >= 200 && value < 400) { // valid range [200, 400)
-            pwm_in[20] = value > 300 ? 2 : 1;
+          if (value >= 399 && value <= 799) { // [399, 799]
+            pwm_in[20] = value > 600 ? 2 : 1;
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_2:
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == GPIO_PIN_SET) {
-          pwm_in[21] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_SET) {
+          pwm_in[21] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == GPIO_PIN_RESET) {
-          pwm_in[22] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_RESET) {
+          pwm_in[22] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
           int value = pwm_in[22] - pwm_in[21];
-          if (value >= 200 && value < 400) { // valid range [200, 400)
-            pwm_in[23] = value < 250 ? 1 : (value > 350 ? 3 : 2);
+          if (value >= 399 && value <= 799) { // [399, 799]
+            pwm_in[23] = value > 700 ? 3 : (value < 500 ? 1 : 2);
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_3:
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_SET) {
-          pwm_in[24] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET) {
+          pwm_in[24] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_RESET) {
-          pwm_in[25] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_RESET) {
+          pwm_in[25] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
           int value = pwm_in[25] - pwm_in[24];
-          if (value >= 200 && value < 400) { // valid range [200, 400)
-            pwm_in[26] = value < 250 ? 1 : (value > 350 ? 3 : 2);
+          if (value >= 399 && value <= 799) {
+            pwm_in[26] = value > 700 ? 3 : (value < 500 ? 1 : 2);
           }
         }
         break;
       case HAL_TIM_ACTIVE_CHANNEL_4:
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
-          pwm_in[27] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET) {
+          pwm_in[27] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
         }
 
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_RESET) {
-          pwm_in[28] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+        if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_RESET) {
+          pwm_in[28] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
           int value = pwm_in[28] - pwm_in[27];
-          if (value >= 200 && value < 400) { // valid range [200, 400)
-            pwm_in[29] = value > 300 ? 2 : 1;
+          if (value >= 399 && value <= 799) {
+            pwm_in[29] = value > 600 ? 2 : 1;
           }
         }
         break;
@@ -654,8 +608,44 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     }
   }
 
+  if (htim->Instance == TIM5) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_3:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_SET) {
+          pwm_in[12] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_RESET) {
+          pwm_in[13] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+          int value = pwm_in[13] - pwm_in[12];
+          if (value >= 399 && value <= 799) { // [399, 799]
+            pwm_in[14] = value;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_4:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_RESET) {
+          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+          int value = pwm_in[16] - pwm_in[15];
+          if (value >= 399 && value <= 799) {
+            pwm_in[17] = value;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+
+    g_tune1 = average_filter_update(&g_af[4], pwm_in[14] - 599);
+    g_tune2 = average_filter_update(&g_af[5], pwm_in[17] - 599);
+  }
+
 #if MONITOR == 4
-  monitor[0] = g_thrust;
+  monitor[0] = g_throttle;
   monitor[1] = g_yaw;
   monitor[2] = g_tune1;
   monitor[3] = g_pitch;
@@ -719,8 +709,8 @@ void fly() {
       set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
 
       // Move sticks to make it ready to take off
-      if (g_thrust <= -99 && g_yaw <= -99
-          && g_pitch <= -99 && g_roll >= 98) {
+      if (g_throttle <= MIN_THROTTLE && g_yaw <= MIN_YAW
+          && g_pitch <= MIN_PITCH && g_roll >= MIN_ROLL) {
         fly_mode = ready;
       }
 
@@ -734,13 +724,13 @@ void fly() {
       set_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
 
       // Switch to fly mode
-      if (g_thrust > 0) {
+      if (g_throttle > 0) {
         fly_mode = moving;
       }
 
       break;
     case holding:
-      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+
       break;
     case moving:
       g_P_pitch = limit(angle_y*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
@@ -761,12 +751,12 @@ void fly() {
       g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
       g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
-      int thrust = MIN_SPEED + (int)(20.0f*sqrt(g_thrust));
+      int throttle = MIN_SPEED + (int)(10.0f*sqrt(g_throttle));
 
-      g_sig1 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = thrust + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = thrust - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
       g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
@@ -776,31 +766,25 @@ void fly() {
       set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
 
       // Pull down the stick to stop
-      if (g_thrust <= -99) {
+      if (g_throttle <= MIN_THROTTLE) {
         fly_mode = init;
       }
 
-      // Stop if angle too large (crashed)
-      if (angle_x < -70 || angle_x > 70 || angle_y < -70 || angle_y > 70) {
-        fly_mode = init;
-      }
+      // Stop if angle too large (crashed), can disable if test with the rig
+//      if (angle_x < -70 || angle_x > 70 || angle_y < -70 || angle_y > 70) {
+//        fly_mode = init;
+//      }
 
       break;
     case landing:
-      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
+
       break;
     case testing:
-      g_sig1 = MIN_SPEED + g_thrust;
-      g_sig2 = MIN_SPEED + g_thrust;
-      g_sig3 = MIN_SPEED + g_thrust;
-      g_sig4 = MIN_SPEED + g_thrust;
-
+      g_sig1 = MIN_SPEED + 6*g_throttle;
+      g_sig2 = MIN_SPEED + 6*g_throttle;
+      g_sig3 = MIN_SPEED + 6*g_throttle;
+      g_sig4 = MIN_SPEED + 6*g_throttle;
       set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
-
-      if (g_thrust <= -99) {
-        fly_mode = init;
-      }
-
       break;
   }
 
