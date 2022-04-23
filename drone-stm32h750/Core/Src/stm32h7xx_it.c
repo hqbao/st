@@ -52,7 +52,7 @@ typedef enum {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
 
 // Motor PWM values
 #define INIT_SPEED 100
@@ -64,19 +64,19 @@ typedef enum {
 #define MIN_PITCH -199
 #define MIN_ROLL -199
 
-#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
-#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
-#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
+#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
-#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
-#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
-#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
 #define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.01
 #define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.01
@@ -86,12 +86,12 @@ typedef enum {
 #define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.01
 
 // PID
-#define P_PITCH_GAIN 1.2
+#define P_PITCH_GAIN 1.0
 #define I_PITCH_GAIN 0.0
 #define I_PITCH_PERIOD 0.0
 #define D_PITCH_GAIN 0.4
 
-#define P_ROLL_GAIN 1.2
+#define P_ROLL_GAIN 1.0
 #define I_ROLL_GAIN 0.0
 #define I_ROLL_PERIOD 0.0
 #define D_ROLL_GAIN 0.4
@@ -99,7 +99,7 @@ typedef enum {
 #define P_YAW_GAIN 0.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 0.0
+#define D_YAW_GAIN 0.001
 
 /* USER CODE END PM */
 
@@ -819,6 +819,17 @@ void fly() {
   monitor[3] = g_sig3;
   monitor[4] = g_sig4;
   monitor[5] = g_sig3 > g_sig4 ? g_sig4 : g_sig3;
+#endif
+
+#if MONITOR == 6
+  monitor[0] = g_mpu6050.ax;
+  monitor[1] = g_mpu6050.ay;
+  monitor[3] = g_mpu6050.gx;
+  monitor[4] = g_mpu6050.gy;
+  monitor[5] = g_mpu6050.gz;
+  monitor[6] = ((float)g_ms5611.P/100.0f - 984)*1000;
+  monitor[7] = (g_ms5611.fast_pressure - 984)*1000;
+  monitor[8] = (g_ms5611.slow_pressure - 984)*1000;
 #endif
 }
 

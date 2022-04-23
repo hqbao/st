@@ -179,9 +179,9 @@ void MS5611_calc_altitude(ms5611_t *ms5611) {
 
 // Counter checks depend on timer frequency
 #define STEP_1 0
-#define STEP_2 4
-#define STEP_3 8
-#define STEP_END 10
+#define STEP_2 7
+#define STEP_3 14
+#define STEP_END 21
 void MS5611_update(ms5611_t *ms5611) {
   static int counter = 0;
 
