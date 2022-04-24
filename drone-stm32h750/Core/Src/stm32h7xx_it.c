@@ -52,7 +52,7 @@ typedef enum {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
+#define MONITOR 5 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
 
 // Motor PWM values
 #define INIT_SPEED 100
@@ -86,15 +86,15 @@ typedef enum {
 #define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.01
 
 // PID
-#define P_PITCH_GAIN 1.0
-#define I_PITCH_GAIN 0.0
-#define I_PITCH_PERIOD 0.0
-#define D_PITCH_GAIN 0.4
+#define P_PITCH_GAIN 4.0
+#define I_PITCH_GAIN 0.01
+#define I_PITCH_PERIOD 0.1
+#define D_PITCH_GAIN 2.0
 
-#define P_ROLL_GAIN 1.0
-#define I_ROLL_GAIN 0.0
-#define I_ROLL_PERIOD 0.0
-#define D_ROLL_GAIN 0.4
+#define P_ROLL_GAIN 4.0
+#define I_ROLL_GAIN 0.01
+#define I_ROLL_PERIOD 0.1
+#define D_ROLL_GAIN 2.0
 
 #define P_YAW_GAIN 0.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
@@ -593,13 +593,13 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 //          g_P_yaw_gain = limit(g_P_yaw_gain + add / 100, 0, 0.5);
           break;
         case 2: // Tuning I
-          g_I_pitch_period = limit(g_I_pitch_period + add / 100, 0, 0.5);
-          g_I_roll_period = limit(g_I_roll_period + add / 100, 0, 0.5);
+          g_I_pitch_period = limit(g_I_pitch_period + add / 10, 0, 5);
+          g_I_roll_period = limit(g_I_roll_period + add / 10, 0, 5);
 //          g_I_yaw_period = limit(g_I_yaw_period + add / 100, 0, 0.5);
           break;
         case 3: // Tuning D
-          g_D_pitch_gain = limit(g_D_pitch_gain + add / 100, 0, 0.5);
-          g_D_roll_gain = limit(g_D_roll_gain + add / 100, 0, 0.5);
+          g_D_pitch_gain = limit(g_D_pitch_gain + add / 10, 0, 5);
+          g_D_roll_gain = limit(g_D_roll_gain + add / 10, 0, 5);
 //          g_D_yaw_gain = limit(g_D_yaw_gain + add / 1000, 0, 0.05);
           break;
         default:
@@ -751,7 +751,7 @@ void fly() {
       g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
       g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
-      int throttle = MIN_SPEED + (int)(10.0f*sqrt(g_throttle));
+      int throttle = MIN_SPEED + (int)(35.0f*sqrt(g_throttle));
 
       g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
