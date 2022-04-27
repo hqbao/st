@@ -87,19 +87,19 @@ typedef enum {
 
 // PID
 #define P_PITCH_GAIN 5.0
-#define I_PITCH_GAIN 0.005
-#define I_PITCH_PERIOD 1.0
-#define D_PITCH_GAIN 2.0
+#define I_PITCH_GAIN 0.01
+#define I_PITCH_PERIOD 0.1
+#define D_PITCH_GAIN 2.5
 
 #define P_ROLL_GAIN 5.0
-#define I_ROLL_GAIN 0.005
-#define I_ROLL_PERIOD 1.0
-#define D_ROLL_GAIN 2.0
+#define I_ROLL_GAIN 0.01
+#define I_ROLL_PERIOD 0.1
+#define D_ROLL_GAIN 2.5
 
-#define P_YAW_GAIN 1.0
+#define P_YAW_GAIN 2.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 0.1
+#define D_YAW_GAIN 1.0
 
 /* USER CODE END PM */
 
