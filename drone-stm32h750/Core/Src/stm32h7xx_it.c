@@ -64,42 +64,42 @@ typedef enum {
 #define MIN_PITCH -199
 #define MIN_ROLL -199
 
-#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
-#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
-#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.7
+#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.7
+#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
+#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
 #define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
-#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
-#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
-#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.7
+#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.7
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
 #define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
-#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.01
-#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.01
-#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.01
-#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.01
-#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.01
-#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.01
+#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.0
+#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.0
+#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
 
 // PID
-#define P_PITCH_GAIN 4.0
-#define I_PITCH_GAIN 0.01
-#define I_PITCH_PERIOD 0.1
+#define P_PITCH_GAIN 5.0
+#define I_PITCH_GAIN 0.005
+#define I_PITCH_PERIOD 1.0
 #define D_PITCH_GAIN 2.0
 
-#define P_ROLL_GAIN 4.0
-#define I_ROLL_GAIN 0.01
-#define I_ROLL_PERIOD 0.1
+#define P_ROLL_GAIN 5.0
+#define I_ROLL_GAIN 0.005
+#define I_ROLL_PERIOD 1.0
 #define D_ROLL_GAIN 2.0
 
-#define P_YAW_GAIN 0.0
+#define P_YAW_GAIN 1.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 0.001
+#define D_YAW_GAIN 0.1
 
 /* USER CODE END PM */
 
@@ -682,8 +682,8 @@ void fly() {
   float gyro_z = g_mpu6050.gz;
 
   // Add remote control bias
-  angle_y -= 0.5*g_pitch;
-  angle_x -= 0.5*g_roll;
+  angle_y -= 0.125*g_pitch; // Max 25 degree
+  angle_x -= 0.125*g_roll; // Max 25 degree
   angle_z -= 0.0*g_yaw;
 
   // Keep alive for the fly
@@ -753,10 +753,10 @@ void fly() {
 
       int throttle = MIN_SPEED + (int)(35.0f*sqrt(g_throttle));
 
-      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
       g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
@@ -780,10 +780,10 @@ void fly() {
 
       break;
     case testing:
-      g_sig1 = MIN_SPEED + 6*g_throttle;
-      g_sig2 = MIN_SPEED + 6*g_throttle;
-      g_sig3 = MIN_SPEED + 6*g_throttle;
-      g_sig4 = MIN_SPEED + 6*g_throttle;
+      g_sig1 = MIN_SPEED + g_throttle;
+      g_sig2 = MIN_SPEED + g_yaw;
+      g_sig3 = MIN_SPEED + g_pitch;
+      g_sig4 = MIN_SPEED + g_roll;
       set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
       break;
   }
