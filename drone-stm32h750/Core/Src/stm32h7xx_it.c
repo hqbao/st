@@ -66,40 +66,40 @@ typedef enum {
 
 #define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.5
 #define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.5
-#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
-#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
+#define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.03
+#define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.03
 #define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.5
 #define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.5
 
 #define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.5
 #define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.5
-#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
-#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.03
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.03
 #define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.5
 #define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.5
 
 #define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.0
-#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.0
+#define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
+#define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
 #define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
 
 // PID
 #define P_PITCH_GAIN 13.0 // 13.0
-#define I_PITCH_GAIN 0.1
-#define I_PITCH_PERIOD 0.0025
+#define I_PITCH_GAIN 0.01 // 0.01
+#define I_PITCH_PERIOD 1.5 // 2.0
 #define D_PITCH_GAIN 8.0 // 8.0
 
 #define P_ROLL_GAIN 13.0
-#define I_ROLL_GAIN 0.1
-#define I_ROLL_PERIOD 0.0025
+#define I_ROLL_GAIN 0.01
+#define I_ROLL_PERIOD 1.5
 #define D_ROLL_GAIN 8.0
 
-#define P_YAW_GAIN 10.0
+#define P_YAW_GAIN 5.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 5.0
+#define D_YAW_GAIN 3.0
 
 /* USER CODE END PM */
 
@@ -685,8 +685,7 @@ void fly() {
   angle_y -= 0.125*g_pitch; // Max 25 degree
   angle_x -= 0.125*g_roll; // Max 25 degree
   if (g_yaw < -5 || g_yaw > 5) {
-    float coef = g_yaw < 0 ? 0.5 : 0.5;
-    angle_z = -coef*g_yaw;
+    angle_z = g_yaw > 0 ? -2.0*g_yaw : -0.1*g_yaw;
     g_mpu6050.angle_z = 0;
   }
 
