@@ -52,31 +52,31 @@ typedef enum {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 5 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
+#define MONITOR 1 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
 
 // Motor PWM values
-#define INIT_SPEED 100
-#define MIN_SPEED 1400
-#define MAX_SPEED 2400
+#define INIT_SPEED 200
+#define MIN_SPEED 2660
+#define MAX_SPEED 4800
 
 #define MIN_THROTTLE -199
 #define MIN_YAW -199
 #define MIN_PITCH -199
 #define MIN_ROLL -199
 
-#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.7
-#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.7
+#define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.5
+#define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.5
 #define MIN_PITCH_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
 #define MAX_PITCH_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
-#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
-#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
+#define MIN_PITCH_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.5
+#define MAX_PITCH_DERIVATION (MAX_SPEED - MIN_SPEED)*0.5
 
-#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.7
-#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.7
+#define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.5
+#define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.5
 #define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
 #define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
-#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
-#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
+#define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.5
+#define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.5
 
 #define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.1
@@ -86,20 +86,20 @@ typedef enum {
 #define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.1
 
 // PID
-#define P_PITCH_GAIN 5.0
-#define I_PITCH_GAIN 0.01
-#define I_PITCH_PERIOD 0.1
-#define D_PITCH_GAIN 2.5
+#define P_PITCH_GAIN 13.0 // 13.0
+#define I_PITCH_GAIN 0.1
+#define I_PITCH_PERIOD 0.0025
+#define D_PITCH_GAIN 8.0 // 8.0
 
-#define P_ROLL_GAIN 5.0
-#define I_ROLL_GAIN 0.01
-#define I_ROLL_PERIOD 0.1
-#define D_ROLL_GAIN 2.5
+#define P_ROLL_GAIN 13.0
+#define I_ROLL_GAIN 0.1
+#define I_ROLL_PERIOD 0.0025
+#define D_ROLL_GAIN 8.0
 
-#define P_YAW_GAIN 2.0
+#define P_YAW_GAIN 10.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 1.0
+#define D_YAW_GAIN 5.0
 
 /* USER CODE END PM */
 
@@ -588,8 +588,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 
       switch (g_stick2) {
         case 1: // Tuning P
-          g_P_pitch_gain = limit(g_P_pitch_gain + add / 10, 0, 5);
-          g_P_roll_gain = limit(g_P_roll_gain + add / 10, 0, 5);
+          g_P_pitch_gain = limit(g_P_pitch_gain + add, 0, 20);
+          g_P_roll_gain = limit(g_P_roll_gain + add, 0, 20);
 //          g_P_yaw_gain = limit(g_P_yaw_gain + add / 100, 0, 0.5);
           break;
         case 2: // Tuning I
@@ -684,7 +684,11 @@ void fly() {
   // Add remote control bias
   angle_y -= 0.125*g_pitch; // Max 25 degree
   angle_x -= 0.125*g_roll; // Max 25 degree
-  angle_z -= 0.0*g_yaw;
+  if (g_yaw < -5 || g_yaw > 5) {
+    float coef = g_yaw < 0 ? 0.5 : 0.5;
+    angle_z = -coef*g_yaw;
+    g_mpu6050.angle_z = 0;
+  }
 
   // Keep alive for the fly
   if (g_stick1 != 2) {
@@ -751,7 +755,7 @@ void fly() {
       g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
       g_D_yaw = limit(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
-      int throttle = MIN_SPEED + (int)(35.0f*sqrt(g_throttle));
+      int throttle = MIN_SPEED + (int)(80.0f*sqrt(g_throttle));
 
       g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
       g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
@@ -771,9 +775,9 @@ void fly() {
       }
 
       // Stop if angle too large (crashed), can disable if test with the rig
-//      if (angle_x < -70 || angle_x > 70 || angle_y < -70 || angle_y > 70) {
-//        fly_mode = init;
-//      }
+      if (angle_x < -60 || angle_x > 60 || angle_y < -60 || angle_y > 60) {
+        fly_mode = init;
+      }
 
       break;
     case landing:

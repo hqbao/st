@@ -162,28 +162,28 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
   }
   if (counter >= 5) return 13;
 
-  // Low-pass filter
-  #define MPU6050_DLPF_BW_260         0x00
-  #define MPU6050_DLPF_BW_184         0x01
-  #define MPU6050_DLPF_BW_94          0x02
-  #define MPU6050_DLPF_BW_44          0x03
-  #define MPU6050_DLPF_BW_21          0x04
-  #define MPU6050_DLPF_BW_10          0x05
-  #define MPU6050_DLPF_BW_5           0x06
-  uint8_t lpf[2] = {0x1A, MPU6050_DLPF_BW_184};
-  for (counter = 0; counter < 5; counter += 1) {
-    if (HAL_I2C_Master_Transmit(mpu6050->i2c, mpu6050->address, lpf, 2, 100) == HAL_OK) {
-      break;
-    }
-  }
-  if (counter >= 5) return 14;
+//  // Low-pass filter, delay -> causeing sway
+//  #define MPU6050_DLPF_BW_260         0x00
+//  #define MPU6050_DLPF_BW_184         0x01
+//  #define MPU6050_DLPF_BW_94          0x02
+//  #define MPU6050_DLPF_BW_44          0x03
+//  #define MPU6050_DLPF_BW_21          0x04
+//  #define MPU6050_DLPF_BW_10          0x05
+//  #define MPU6050_DLPF_BW_5           0x06
+//  uint8_t lpf[2] = {0x1A, MPU6050_DLPF_BW_184};
+//  for (counter = 0; counter < 5; counter += 1) {
+//    if (HAL_I2C_Master_Transmit(mpu6050->i2c, mpu6050->address, lpf, 2, 100) == HAL_OK) {
+//      break;
+//    }
+//  }
+//  if (counter >= 5) return 14;
 
   kalman_filter_init(&mpu6050->kf[0], 2, 2, 0.1); // Accel x
   kalman_filter_init(&mpu6050->kf[1], 2, 2, 0.1); // Accel y
   kalman_filter_init(&mpu6050->kf[2], 2, 2, 0.1); // Accel z
-  kalman_filter_init(&mpu6050->kf[3], 2, 2, 0.1); // Gyro x
-  kalman_filter_init(&mpu6050->kf[4], 2, 2, 0.1); // Gyro Y
-  kalman_filter_init(&mpu6050->kf[5], 2, 2, 0.1); // Gyro z
+  kalman_filter_init(&mpu6050->kf[3], 2, 2, 1.0); // Gyro x
+  kalman_filter_init(&mpu6050->kf[4], 2, 2, 1.0); // Gyro Y
+  kalman_filter_init(&mpu6050->kf[5], 2, 2, 1.0); // Gyro z
 
   // For angle calculation
   memset(mpu6050->gyro_angle, 0, 3 * sizeof(float));
