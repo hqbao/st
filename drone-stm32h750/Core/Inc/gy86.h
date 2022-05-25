@@ -42,9 +42,9 @@ typedef struct {
   float gy;
   float gz;
 
-  float ax_offset;
-  float ay_offset;
-  float az_offset;
+  float angle_x_offset;
+  float angle_y_offset;
+  float angle_z_offset;
   float gx_offset;
   float gy_offset;
   float gz_offset;
@@ -52,6 +52,9 @@ typedef struct {
   float angle_x;
   float angle_y;
   float angle_z;
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
 
   // Calculated angles from gyro's values in that order: X, Y, Z
   float gyro_angle[3];
