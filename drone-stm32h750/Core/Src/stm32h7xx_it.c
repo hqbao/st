@@ -56,7 +56,7 @@ typedef enum {
 #define MONITOR 6 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
 
 // Motor PWM values
-#define INIT_SPEED 200
+#define INIT_SPEED 2000
 #define MIN_SPEED 2400
 #define MAX_SPEED 4800
 
@@ -74,8 +74,8 @@ typedef enum {
 
 #define MIN_ROLL_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_ROLL_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
-#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
-#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
+#define MIN_ROLL_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.05
+#define MAX_ROLL_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.05
 #define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
@@ -90,7 +90,7 @@ typedef enum {
 #define P_PITCH_GAIN 10.0 // 10.0
 #define I_PITCH_GAIN 1.0 // 0.01
 #define I_PITCH_PERIOD 0.0025 // 2.0
-#define D_PITCH_GAIN 9.0 // 9.0
+#define D_PITCH_GAIN 4.0 // 9.0
 
 #define P_ROLL_GAIN 10.0
 #define I_ROLL_GAIN 1.0
@@ -176,10 +176,10 @@ void set_speed(uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4,
   TIM2->CCR2 = m3;
   TIM2->CCR3 = m5;
   TIM2->CCR4 = m7;
-  TIM3->CCR1 = m2;
-  TIM3->CCR2 = m4;
-  TIM3->CCR3 = m6;
-  TIM3->CCR4 = m8;
+//  TIM3->CCR1 = m2;
+//  TIM3->CCR2 = m4;
+//  TIM3->CCR3 = m6;
+//  TIM3->CCR4 = m8;
 }
 
 void fly(void);
@@ -503,8 +503,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     }
 
     g_throttle = average_filter_update(&g_af[0], pwm_in[2] - 400);
-    g_yaw = average_filter_update(&g_af[1], pwm_in[8] - 600);
-    g_pitch = average_filter_update(&g_af[2], pwm_in[11] - 600);
+    g_yaw = average_filter_update(&g_af[1], pwm_in[11] - 600);
+    g_pitch = average_filter_update(&g_af[2], pwm_in[8] - 600);
     g_roll = average_filter_update(&g_af[3], pwm_in[5] - 600);
   }
 
@@ -581,22 +581,12 @@ void fly() {
   float gyro_y = g_mpu6050.gyro_y;
   float gyro_z = g_mpu6050.gyro_z;
 
-//  static float prev_angle_x = 0;
-//  static float prev_angle_y = 0;
-//  static float prev_angle_z = 0;
-//  float gyro_y = (angle_x - prev_angle_x)*400;
-//  float gyro_x = (angle_y - prev_angle_y)*400;
-//  float gyro_z = (angle_z - prev_angle_z)*400;
-//  prev_angle_x = angle_x;
-//  prev_angle_y = angle_y;
-//  prev_angle_z = angle_z;
-
   // Add remote control bias
   float angle_error_y = angle_y - 0.125*g_pitch; // Max 25 degree
   float angle_error_x = angle_x - 0.125*g_roll; // Max 25 degree
   float angle_error_z = angle_z;
   if (g_yaw < -5 || g_yaw > 5) {
-    angle_error_z = g_yaw > 0 ? -0.5*g_yaw : -0.5*g_yaw;
+    angle_error_z = g_yaw > 0 ? -0.2*g_yaw : -0.2*g_yaw;
     g_mpu6050.angle_z = 0;
   }
 
@@ -669,26 +659,25 @@ void fly() {
 
       int throttle = MIN_SPEED + (int)(70.0f*sqrt(g_throttle));
 
-      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig5 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig6 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig7 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig8 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-
+      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll);
+//      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll);
+//      g_sig4 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig5 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_yaw + g_I_yaw + g_D_yaw);
+//      g_sig6 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig7 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_yaw + g_I_yaw + g_D_yaw);
+//      g_sig8 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
-      g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
+//      g_sig2 = limit(g_sig2, MIN_SPEED, MAX_SPEED);
       g_sig3 = limit(g_sig3, MIN_SPEED, MAX_SPEED);
-      g_sig4 = limit(g_sig4, MIN_SPEED, MAX_SPEED);
+//      g_sig4 = limit(g_sig4, MIN_SPEED, MAX_SPEED);
       g_sig5 = limit(g_sig5, MIN_SPEED, MAX_SPEED);
-      g_sig6 = limit(g_sig6, MIN_SPEED, MAX_SPEED);
+//      g_sig6 = limit(g_sig6, MIN_SPEED, MAX_SPEED);
       g_sig7 = limit(g_sig7, MIN_SPEED, MAX_SPEED);
-      g_sig8 = limit(g_sig8, MIN_SPEED, MAX_SPEED);
+//      g_sig8 = limit(g_sig8, MIN_SPEED, MAX_SPEED);
 
-      set_speed(g_sig1, g_sig2, g_sig3, g_sig4, g_sig5, g_sig6, g_sig7, g_sig8);
+      set_speed(g_sig1, 0, g_sig3, 0, g_sig5, 0, g_sig7, 0);
 
       // Pull down the stick to stop
       if (g_throttle <= MIN_THROTTLE) {
@@ -713,14 +702,14 @@ void fly() {
 //      g_sig6 = MIN_SPEED - 100 + limit(5*g_pitch, 0, 4800);
 //      g_sig7 = MIN_SPEED - 100 + limit(5*g_roll, 0, 4800);
 //      g_sig8 = MIN_SPEED - 100 + limit(5*g_roll, 0, 4800);
-      g_sig1 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig2 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig3 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig4 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig5 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig6 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig7 = limit(0 + 12*g_throttle, 0, 4800);
-      g_sig8 = limit(0 + 12*g_throttle, 0, 4800);
+      g_sig1 = limit(0 + 12*g_throttle, 2000, 4800);
+//      g_sig2 = limit(0 + 62*g_throttle, 0, 25000);
+      g_sig3 = limit(0 + 12*g_throttle, 2000, 4800);
+//      g_sig4 = limit(0 + 62*g_throttle, 0, 25000);
+      g_sig5 = limit(0 + 12*g_throttle, 2000, 4800);
+//      g_sig6 = limit(0 + 62*g_throttle, 0, 25000);
+      g_sig7 = limit(0 + 12*g_throttle, 2000, 4800);
+//      g_sig8 = limit(0 + 62*g_throttle, 0, 25000);
 
       // Pull down the stick to stop
 //      if (g_throttle <= MIN_THROTTLE) {

@@ -196,7 +196,7 @@ int main(void)
     flash(error);
   }
 
-  MPU6050_set_offset(&g_mpu6050, 3.0, -5.1, 0, -125, -270, -10);
+  MPU6050_set_offset(&g_mpu6050, 0.75, -0.55, 0, 280, 125, 10);
 
 //  while (1) {
 //    int error = MS5611_init(
@@ -240,7 +240,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//    HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
+    HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
   }
   /* USER CODE END 3 */
 }
