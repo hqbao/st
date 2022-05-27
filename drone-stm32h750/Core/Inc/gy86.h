@@ -42,9 +42,9 @@ typedef struct {
   float gy;
   float gz;
 
-  float angle_x_offset;
-  float angle_y_offset;
-  float angle_z_offset;
+  float ax_offset;
+  float ay_offset;
+  float az_offset;
   float gx_offset;
   float gy_offset;
   float gz_offset;

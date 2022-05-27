@@ -196,7 +196,23 @@ int main(void)
     flash(error);
   }
 
-  MPU6050_set_offset(&g_mpu6050, 0.75, -0.55, 0, 280, 125, 10);
+  int i = 0;
+  int gx = 0;
+  int gy = 0;
+  int gz = 0;
+  while (i < 1000) {
+    MPU6050_update(&g_mpu6050);
+    HAL_Delay(3);
+    gx += g_mpu6050.gx;
+    gy += g_mpu6050.gy;
+    gz += g_mpu6050.gz;
+    i += 1;
+  }
+  gx = gx/1000;
+  gy = gy/1000;
+  gz = gz/1000;
+
+  MPU6050_set_offset(&g_mpu6050, -287, 202, -82, -gx, -gy, -gz);
 
 //  while (1) {
 //    int error = MS5611_init(

@@ -170,7 +170,7 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
   #define MPU6050_DLPF_BW_21          0x04
   #define MPU6050_DLPF_BW_10          0x05
   #define MPU6050_DLPF_BW_5           0x06
-  uint8_t lpf[2] = {0x1A, MPU6050_DLPF_BW_184};
+  uint8_t lpf[2] = {0x1A, MPU6050_DLPF_BW_94};
   for (counter = 0; counter < 5; counter += 1) {
     if (HAL_I2C_Master_Transmit(mpu6050->i2c, mpu6050->address, lpf, 2, 100) == HAL_OK) {
       break;
@@ -196,11 +196,11 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
 }
 
 void MPU6050_set_offset(mpu6050_t *mpu6050,
-    float angle_x_offset, float angle_y_offset, float angle_z_offset,
+    float ax_offset, float ay_offset, float az_offset,
     float gx_offset, float gy_offset, float gz_offset) {
-  mpu6050->angle_x_offset = angle_x_offset;
-  mpu6050->angle_y_offset = angle_y_offset;
-  mpu6050->angle_z_offset = angle_z_offset;
+  mpu6050->ax_offset = ax_offset;
+  mpu6050->ay_offset = ay_offset;
+  mpu6050->az_offset = az_offset;
   mpu6050->gx_offset = gx_offset;
   mpu6050->gy_offset = gy_offset;
   mpu6050->gz_offset = gz_offset;
@@ -222,6 +222,10 @@ void MPU6050_parse_6axis(mpu6050_t *mpu6050) {
 //  mpu6050->ay = kalman_filter_update(&mpu6050->kf[1], mpu6050->ay);
 //  mpu6050->az = kalman_filter_update(&mpu6050->kf[2], mpu6050->az);
 
+  mpu6050->ax = mpu6050->ax + mpu6050->ax_offset;
+  mpu6050->ay = mpu6050->ay + mpu6050->ay_offset;
+  mpu6050->az = mpu6050->az + mpu6050->az_offset;
+
   int16_t temp = (mpu6050->rx_buffer[6] << 8 | mpu6050->rx_buffer[7]);
   mpu6050->temperature = (float)((float)((int16_t)temp) / (float)340.0 + (float)36.53);
 
@@ -242,8 +246,4 @@ void MPU6050_parse_6axis(mpu6050_t *mpu6050) {
   mpu6050->gyro_z = mpu6050->gz / SSF_GYRO;
 
   calc_angles(mpu6050);
-
-  mpu6050->angle_x = mpu6050->angle_x + mpu6050->angle_x_offset;
-  mpu6050->angle_y = mpu6050->angle_y + mpu6050->angle_y_offset;
-  mpu6050->angle_z = mpu6050->angle_z + mpu6050->angle_z_offset;
 }
