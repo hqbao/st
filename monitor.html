@@ -264,6 +264,7 @@
           try {
             const { value, done } = await reader.read();
             var str = new TextDecoder().decode(value);
+            console.log(str);
             gData += str;
           }
           catch (error) {

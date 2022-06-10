@@ -88,13 +88,13 @@ typedef enum {
 
 // PID
 #define P_PITCH_GAIN 10.0 // 10.0
-#define I_PITCH_GAIN 1.0 // 0.01
-#define I_PITCH_PERIOD 0.0025 // 2.0
+#define I_PITCH_GAIN 0.0 // 0.01
+#define I_PITCH_PERIOD 0.0 // 2.0
 #define D_PITCH_GAIN 4.0 // 9.0
 
 #define P_ROLL_GAIN 10.0
-#define I_ROLL_GAIN 1.0
-#define I_ROLL_PERIOD 0.0025
+#define I_ROLL_GAIN 0.0
+#define I_ROLL_PERIOD 0.0
 #define D_ROLL_GAIN 9.0
 
 #define P_YAW_GAIN 7.0
@@ -659,13 +659,13 @@ void fly() {
 
       int throttle = MIN_SPEED + (int)(70.0f*sqrt(g_throttle));
 
-      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll);
+      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 //      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll);
+      g_sig3 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
 //      g_sig4 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig5 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig5 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 //      g_sig6 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig7 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig7 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
 //      g_sig8 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = limit(g_sig1, MIN_SPEED, MAX_SPEED);
@@ -757,9 +757,9 @@ void fly() {
 #endif
 
 #if MONITOR == 6
-  monitor[0] = g_mpu6050.angle_x;
-  monitor[1] = g_mpu6050.angle_y;
-  monitor[2] = g_mpu6050.angle_z;
+  monitor[0] = g_mpu6050.ax;
+  monitor[1] = g_mpu6050.ay;
+  monitor[2] = g_mpu6050.az;
   monitor[3] = g_mpu6050.gx;
   monitor[4] = g_mpu6050.gy;
   monitor[5] = g_mpu6050.gz;
