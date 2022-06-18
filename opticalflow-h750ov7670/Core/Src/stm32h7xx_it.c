@@ -27,6 +27,7 @@
 #include <string.h>
 #include "OV7670.h"
 #include "color_conversion.h"
+#include "Coarse2FineFlowWrapper.h"
 
 /* USER CODE END Includes */
 
@@ -49,6 +50,14 @@
 /* USER CODE BEGIN PV */
 
 uint8_t g_uart_rx_buffer[1] = {0};
+static uint8_t g_prev_img = 0;
+static uint16_t g_height = 0;
+static uint16_t g_width = 0;
+static double g_img0[4800];
+static double g_img1[4800];
+static double g_v1[4800];
+static double g_v2[4800];
+static double g_warpI2[4800];
 
 /* USER CODE END PV */
 
@@ -59,6 +68,8 @@ void log_string(const char *str);
 void log_data(const uint8_t *data, uint16_t size);
 void schedule_50hz(void);
 void schedule_5hz(void);
+void update_image(void);
+void update_flow(void);
 
 /* USER CODE END PFP */
 
@@ -306,65 +317,77 @@ void schedule_50hz(void) {
 }
 
 void schedule_5hz(void) {
+  update_image();
+  update_flow();
   HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
 }
 
-void view_image() {
-  static uint16_t width, height;
+void update_image(void) {
   static uint8_t format;
-  static uint8_t data[240*320];
-  OV7670_getImageInfo(&width, &height, &format);
-  memset(data, 100, height*width);
+  OV7670_getImageInfo(&g_width, &g_height, &format);
 
-  for (int k = 0; k < 2; k += 1) {
-    for (int i = k; i < height; i += 2) {
-      for (int j = 0; j < (int)width/2; j += 1) {
-        int idx = i*(width/2) + j;
-        uint32_t temp = g_image_data[idx];
-        if (format == YUV422) {
-          int16_t Y2 = (temp >> 24) & 0x00FF;
-          int16_t U = ((temp >> 16) & 0x00FF) - 128;
-          int16_t Y1 = (temp >> 8) & 0x00FF;
-          int16_t V = (temp & 0x00FF) - 128;
-          uint32_t pix = YUVtoRGB888(Y1, U, V);
-          uint32_t next_pix = YUVtoRGB888(Y2, U, V);
+  double *img_ptr = g_prev_img == 0 ? g_img1 : g_img0;
 
-          uint8_t r = (pix >> (0)) & 0xff;
-          uint8_t g = (pix >> (8)) & 0xff;
-          uint8_t b = (pix >> (16)) & 0xff;
-          data[2*idx] = (uint8_t)((r + g + b)/3);
+  for (int i = 0; i < g_height; i += 1) {
+    for (int j = 0; j < (int)g_width/2; j += 1) {
+      int idx = i*(g_width/2) + j;
+      uint32_t temp = g_image_data[idx];
+      if (format == YUV422) {
+        int16_t Y2 = (temp >> 24) & 0x00FF;
+        int16_t U = ((temp >> 16) & 0x00FF) - 128;
+        int16_t Y1 = (temp >> 8) & 0x00FF;
+        int16_t V = (temp & 0x00FF) - 128;
+        uint32_t pix = YUVtoRGB888(Y1, U, V);
+        uint32_t next_pix = YUVtoRGB888(Y2, U, V);
 
-          r = (next_pix >> (0)) & 0xff;
-          g = (next_pix >> (8)) & 0xff;
-          b = (next_pix >> (16)) & 0xff;
-          data[2*idx + 1] = (uint8_t)((r + g + b)/3);
-        }
-        else {
-          uint16_t rbg1 = (temp >> 0) & 0x00FF;
-          uint16_t rbg2 = (temp >> 16) & 0x00FF;
-          uint32_t pix = RGB565toRGB888(rbg1);
-          uint32_t next_pix = RGB565toRGB888(rbg2);
+        uint8_t r = (pix >> (0)) & 0xff;
+        uint8_t g = (pix >> (8)) & 0xff;
+        uint8_t b = (pix >> (16)) & 0xff;
+        uint8_t rgb = ((r + g + b)/3);
+        img_ptr[2*idx] = rgb;
 
-          uint8_t r = (pix >> (0)) & 0xff;
-          uint8_t g = (pix >> (8)) & 0xff;
-          uint8_t b = (pix >> (16)) & 0xff;
-          data[2*idx] = (uint8_t)((r + g + b)/3);
+        r = (next_pix >> (0)) & 0xff;
+        g = (next_pix >> (8)) & 0xff;
+        b = (next_pix >> (16)) & 0xff;
+        rgb = ((r + g + b)/3);
+        img_ptr[2*idx + 1] = rgb;
+      }
+      else {
+        uint16_t rbg1 = (temp >> 0) & 0x00FF;
+        uint16_t rbg2 = (temp >> 16) & 0x00FF;
+        uint32_t pix = RGB565toRGB888(rbg1);
+        uint32_t next_pix = RGB565toRGB888(rbg2);
 
-          r = (next_pix >> (0)) & 0xff;
-          g = (next_pix >> (8)) & 0xff;
-          b = (next_pix >> (16)) & 0xff;
-          data[2*idx + 1] = (uint8_t)((r + g + b)/3);
-        }
+        uint8_t r = (pix >> (0)) & 0xff;
+        uint8_t g = (pix >> (8)) & 0xff;
+        uint8_t b = (pix >> (16)) & 0xff;
+        uint8_t rgb = ((r + g + b)/3);
+        img_ptr[2*idx] = rgb;
+
+        r = (next_pix >> (0)) & 0xff;
+        g = (next_pix >> (8)) & 0xff;
+        b = (next_pix >> (16)) & 0xff;
+        rgb = ((r + g + b)/3);
+        img_ptr[2*idx + 1] = rgb;
       }
     }
   }
 
-  log_data(data, height*width);
+  g_prev_img = g_prev_img == 0 ? 1 : 0;
+}
+
+void update_flow(void) {
+//  Coarse2FineFlowWrapper(g_v1, g_v2, g_warpI2, g_img0, g_img1,
+//      0.0012, 3/4, 30, 2, 1, 1, 1, 60, 80, 1);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
-  view_image();
+  static uint8_t img[4800];
+  for (int i = 0; i < g_height*g_width; i +=1)
+    img[i] = (uint8_t)g_img0[i];
+
+  log_data(img, g_height*g_width);
 }
 
 /* USER CODE END 1 */

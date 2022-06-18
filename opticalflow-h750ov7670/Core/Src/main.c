@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "OV7670.h"
+#include "Coarse2FineFlowWrapper.h"
 
 /* USER CODE END Includes */
 
@@ -159,6 +160,14 @@ int main(void)
   MX_LPTIM1_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+
+//  static double g_img0[4096];
+//  static double g_img1[4096];
+//  static double g_v1[4096];
+//  static double g_v2[4096];
+//  static double g_warpI2[4096];
+//  Coarse2FineFlowWrapper(g_v1, g_v2, g_warpI2, g_img0, g_img1,
+//    0.0012, 0.75, 30, 2, 1, 1, 1, 64, 64, 1);
 
   flash(5);
 
@@ -425,7 +434,7 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 500;
+  htim7.Init.Prescaler = 2500;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 20000;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
