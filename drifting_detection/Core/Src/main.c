@@ -22,8 +22,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include <stdio.h>
-#include <string.h>
 #include "optical_flow.h"
 
 /* USER CODE END Includes */
@@ -44,6 +42,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+DCMI_HandleTypeDef hdcmi;
+
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
@@ -55,13 +55,7 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-adns3080_t g_of;
-
-// Debug message
-char g_console_msg[256] = {0};
-
-// UART receive buffer
-uint8_t g_uart_rx_buffer[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+optical_flow_t g_optflw;
 
 /* USER CODE END PV */
 
@@ -74,6 +68,7 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_DCMI_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -91,29 +86,6 @@ static void flash(uint8_t count) {
   }
 
   HAL_Delay(200);
-}
-
-// Monitor console
-void console(const char *str) {
-  HAL_UART_Transmit_IT(&huart1, (uint8_t*)str, (uint16_t)strlen(str));
-}
-
-void send_data(
-  float x1, float x2, float x3,
-  float x4, float x5, float x6,
-  float x7, float x8, float x9) {
-  memset(g_console_msg, 0, 256);
-  sprintf(g_console_msg, "[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
-      (int)(x1*100000),
-      (int)(x2*100000),
-      (int)(x3*100000),
-      (int)(x4*100000),
-      (int)(x5*100000),
-      (int)(x6*100000),
-      (int)(x7*100000),
-      (int)(x8*100000),
-      (int)(x9*100000));
-  console(g_console_msg);
 }
 
 /* USER CODE END 0 */
@@ -156,6 +128,7 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM6_Init();
   MX_TIM1_Init();
+  MX_DCMI_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -163,7 +136,7 @@ int main(void)
 
   // Initialise GY-86
   while (1) {
-    int error = adns3080_init(&g_of, &hspi1);
+    int error = optical_flow_init(&g_optflw, &huart1);
     if (error == 0) break;
     flash(error);
   }
@@ -188,7 +161,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
   }
   /* USER CODE END 3 */
 }
@@ -269,6 +241,43 @@ void PeriphCommonClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief DCMI Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DCMI_Init(void)
+{
+
+  /* USER CODE BEGIN DCMI_Init 0 */
+
+  /* USER CODE END DCMI_Init 0 */
+
+  /* USER CODE BEGIN DCMI_Init 1 */
+
+  /* USER CODE END DCMI_Init 1 */
+  hdcmi.Instance = DCMI;
+  hdcmi.Init.SynchroMode = DCMI_SYNCHRO_HARDWARE;
+  hdcmi.Init.PCKPolarity = DCMI_PCKPOLARITY_RISING;
+  hdcmi.Init.VSPolarity = DCMI_VSPOLARITY_LOW;
+  hdcmi.Init.HSPolarity = DCMI_HSPOLARITY_LOW;
+  hdcmi.Init.CaptureRate = DCMI_CR_ALL_FRAME;
+  hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
+  hdcmi.Init.JPEGMode = DCMI_JPEG_DISABLE;
+  hdcmi.Init.ByteSelectMode = DCMI_BSM_ALL;
+  hdcmi.Init.ByteSelectStart = DCMI_OEBS_ODD;
+  hdcmi.Init.LineSelectMode = DCMI_LSM_ALL;
+  hdcmi.Init.LineSelectStart = DCMI_OELS_ODD;
+  if (HAL_DCMI_Init(&hdcmi) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DCMI_Init 2 */
+
+  /* USER CODE END DCMI_Init 2 */
+
 }
 
 /**
@@ -555,11 +564,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);

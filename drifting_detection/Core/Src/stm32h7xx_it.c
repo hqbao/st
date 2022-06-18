@@ -22,12 +22,21 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
+#include <stdio.h>
+#include <string.h>
 #include "optical_flow.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
+void console(const char *str);
+void send_data(
+  float x1, float x2, float x3,
+  float x4, float x5, float x6,
+  float x7, float x8, float x9);
 void update(void);
 
 /* USER CODE END TD */
@@ -44,6 +53,12 @@ void update(void);
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+
+// Debug message
+char g_console_msg[256] = {0};
+
+// UART receive buffer
+uint8_t g_uart_rx_buffer[4096] = {0};
 
 // Monitor
 float monitor[9] = {0};
@@ -65,17 +80,12 @@ extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
-extern adns3080_t g_of;
+extern optical_flow_t g_optflw;
 
 // Remote control
-extern uint8_t g_uart_rx_buffer[10];
+extern uint8_t g_uart_rx_buffer[4096];
 
 extern float limit(float number, float min, float max);
-extern void console(const char *str);
-extern void send_data(
-  float x1, float x2, float x3,
-  float x4, float x5, float x6,
-  float x7, float x8, float x9);
 
 /* USER CODE END EV */
 
@@ -238,6 +248,8 @@ void TIM6_DAC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
 
+  HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 4096);
+
   update();
 
   /* USER CODE END TIM6_DAC_IRQn 0 */
@@ -264,11 +276,33 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void update(void) {
-  adns3080_update(&g_of);
+  optical_flow_update(&g_optflw, g_uart_rx_buffer);
 
-//  monitor[0] = g_of.motion;
-  monitor[1] = g_of.dx;
-  monitor[2] = g_of.dy;
+  monitor[1] = g_optflw.dx;
+  monitor[2] = g_optflw.dy;
+}
+
+// Monitor console
+void console(const char *str) {
+  HAL_UART_Transmit_IT(&huart1, (uint8_t*)str, (uint16_t)strlen(str));
+}
+
+void send_data(
+  float x1, float x2, float x3,
+  float x4, float x5, float x6,
+  float x7, float x8, float x9) {
+  memset(g_console_msg, 0, 256);
+  sprintf(g_console_msg, "[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
+      (int)(x1*100000),
+      (int)(x2*100000),
+      (int)(x3*100000),
+      (int)(x4*100000),
+      (int)(x5*100000),
+      (int)(x6*100000),
+      (int)(x7*100000),
+      (int)(x8*100000),
+      (int)(x9*100000));
+  console(g_console_msg);
 }
 
 /* USER CODE END 1 */
