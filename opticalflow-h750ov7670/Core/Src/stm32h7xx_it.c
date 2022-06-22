@@ -44,6 +44,11 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+#define HEIGHT 60
+#define WIDTH 80
+#define CROP_HEIGHT 12
+#define CROP_WIDTH 16
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -53,11 +58,17 @@ uint8_t g_uart_rx_buffer[1] = {0};
 static uint8_t g_prev_img = 0;
 static uint16_t g_height = 0;
 static uint16_t g_width = 0;
-static double g_img0[4800];
-static double g_img1[4800];
-static double g_v1[4800];
-static double g_v2[4800];
-static double g_warpI2[4800];
+static double g_img0[HEIGHT*WIDTH];
+static double g_img1[HEIGHT*WIDTH];
+static double g_crop_img0[CROP_HEIGHT*CROP_WIDTH];
+static double g_crop_img1[CROP_HEIGHT*CROP_WIDTH];
+static double g_vy[CROP_HEIGHT*CROP_WIDTH];
+static double g_vx[CROP_HEIGHT*CROP_WIDTH];
+static double g_warpI2[CROP_HEIGHT*CROP_WIDTH];
+static double g_sy = 0;
+static double g_sx = 0;
+static char uart_msg[16];
+
 
 /* USER CODE END PV */
 
@@ -66,7 +77,7 @@ static double g_warpI2[4800];
 
 void log_string(const char *str);
 void log_data(const uint8_t *data, uint16_t size);
-void schedule_50hz(void);
+void schedule_1hz(void);
 void schedule_5hz(void);
 void update_image(void);
 void update_flow(void);
@@ -263,7 +274,7 @@ void TIM6_DAC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
 
-  schedule_50hz();
+  schedule_1hz();
 
   /* USER CODE END TIM6_DAC_IRQn 0 */
   HAL_TIM_IRQHandler(&htim6);
@@ -312,22 +323,23 @@ void log_data(const uint8_t *data, uint16_t size) {
   HAL_UART_Transmit_IT(&huart1, (uint8_t*)data, (uint16_t)size);
 }
 
-void schedule_50hz(void) {
-
-}
-
 void schedule_5hz(void) {
   update_image();
   update_flow();
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
   HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
+}
+
+void schedule_1hz(void) {
+
 }
 
 void update_image(void) {
   static uint8_t format;
   OV7670_getImageInfo(&g_width, &g_height, &format);
 
+  // Full image
   double *img_ptr = g_prev_img == 0 ? g_img1 : g_img0;
-
   for (int i = 0; i < g_height; i += 1) {
     for (int j = 0; j < (int)g_width/2; j += 1) {
       int idx = i*(g_width/2) + j;
@@ -373,21 +385,57 @@ void update_image(void) {
     }
   }
 
-  g_prev_img = g_prev_img == 0 ? 1 : 0;
+  // Cropped image
+  double *crop_img_ptr = g_prev_img == 0 ? g_crop_img1 : g_crop_img0;
+  for (int i = 0; i < CROP_HEIGHT; i +=1) {
+    for (int j = 0; j < CROP_WIDTH; j += 1) {
+      double sum = 0;
+      for (int k1 = 0; k1 < 5; k1 += 1)
+        for (int k2 = 0; k2 < 5; k2 += 1)
+          sum += img_ptr[(5*i+k1)*WIDTH+5*j+k2];
+
+      crop_img_ptr[i*CROP_WIDTH+j] = (sum/25/255);
+    }
+  }
 }
 
 void update_flow(void) {
-//  Coarse2FineFlowWrapper(g_v1, g_v2, g_warpI2, g_img0, g_img1,
-//      0.0012, 3/4, 30, 2, 1, 1, 1, 60, 80, 1);
+  // Switch image pointer
+  g_prev_img = g_prev_img == 0 ? 1 : 0;
+
+  Coarse2FineFlowWrapper(g_vx, g_vy, g_warpI2,
+      g_crop_img0, g_crop_img1,
+      0.0012, 0.75, 4, 1, 1, 1, 1, CROP_HEIGHT, CROP_WIDTH, 1);
+  double sy = 0;
+  double sx = 0;
+  for (int i = 0; i < CROP_HEIGHT*CROP_WIDTH; i += 1) {
+    sy += g_vy[i];
+    sx += g_vx[i];
+  }
+
+  sy = sy / CROP_HEIGHT;
+  sx = sx / CROP_WIDTH;
+  g_sy += sy;
+  g_sx += sx;
+
+//  static uint8_t img[CROP_HEIGHT*CROP_WIDTH];
+//  double *img_ptr = g_prev_img == 0 ? g_crop_img1 : g_crop_img0;
+//  for (int i = 0; i < CROP_HEIGHT; i +=1) {
+//    for (int j = 0; j < CROP_WIDTH; j += 1) {
+//      img[i*CROP_WIDTH+j] = (uint8_t)(255*img_ptr[i*CROP_WIDTH+j]);
+//    }
+//  }
+//  log_data(img, CROP_HEIGHT*CROP_WIDTH);
+
+  sprintf(uart_msg, "%d,%d\n", (int)(g_sy), (int)(g_sx));
+  log_string(uart_msg);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
-  static uint8_t img[4800];
-  for (int i = 0; i < g_height*g_width; i +=1)
-    img[i] = (uint8_t)g_img0[i];
-
-  log_data(img, g_height*g_width);
+  if (g_uart_rx_buffer[0] == 0x02) {
+    g_sy = 0;
+    g_sx = 0;
+  }
 }
 
 /* USER CODE END 1 */
