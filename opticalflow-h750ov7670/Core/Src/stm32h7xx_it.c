@@ -323,15 +323,15 @@ void log_data(const uint8_t *data, uint16_t size) {
   HAL_UART_Transmit_IT(&huart1, (uint8_t*)data, (uint16_t)size);
 }
 
+void schedule_1hz(void) {
+
+}
+
 void schedule_5hz(void) {
   update_image();
   update_flow();
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
   HAL_UART_Receive_IT(&huart1, g_uart_rx_buffer, 1);
-}
-
-void schedule_1hz(void) {
-
 }
 
 void update_image(void) {

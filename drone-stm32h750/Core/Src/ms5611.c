@@ -26,9 +26,7 @@
 #define TEMP_OSR_2048 0x56
 #define TEMP_OSR_4096 0x58
 
-float limit(float number, float min, float max) {
-  return number < min ? min : (number > max ? max : number);
-}
+#define LIMIT(number, min, max) (number < min ? min : (number > max ? max : number))
 
 void _reset(ms5611_t *ms5611) {
   ms5611->tx = CMD_RESET;
@@ -168,7 +166,7 @@ void MS5611_calc_altitude(ms5611_t *ms5611) {
   ms5611->slow_pressure = ms5611->slow_pressure*0.99 + ms5611->fast_pressure*0.01;
 
   // Fix slow response problem
-  float diff = limit(ms5611->fast_pressure - ms5611->slow_pressure, -8, 8);
+  float diff = LIMIT(ms5611->fast_pressure - ms5611->slow_pressure, -8, 8);
   if (diff < -0.012 || diff > 0.012)
     ms5611->slow_pressure += 0.2*diff;
 

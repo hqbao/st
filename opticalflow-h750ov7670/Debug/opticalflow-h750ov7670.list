@@ -14107,137 +14107,136 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
  800794e:	2300      	movs	r3, #0
  8007950:	603b      	str	r3, [r7, #0]
  8007952:	4b37      	ldr	r3, [pc, #220]	; (8007a30 <SystemClock_Config+0x108>)
- 8007954:	6adb      	ldr	r3, [r3, #44]	; 0x2c
+ 8007954:	699b      	ldr	r3, [r3, #24]
  8007956:	4a36      	ldr	r2, [pc, #216]	; (8007a30 <SystemClock_Config+0x108>)
- 8007958:	f023 0301 	bic.w	r3, r3, #1
- 800795c:	62d3      	str	r3, [r2, #44]	; 0x2c
+ 8007958:	f443 4340 	orr.w	r3, r3, #49152	; 0xc000
+ 800795c:	6193      	str	r3, [r2, #24]
  800795e:	4b34      	ldr	r3, [pc, #208]	; (8007a30 <SystemClock_Config+0x108>)
- 8007960:	6adb      	ldr	r3, [r3, #44]	; 0x2c
- 8007962:	f003 0301 	and.w	r3, r3, #1
+ 8007960:	699b      	ldr	r3, [r3, #24]
+ 8007962:	f403 4340 	and.w	r3, r3, #49152	; 0xc000
  8007966:	603b      	str	r3, [r7, #0]
  8007968:	4b32      	ldr	r3, [pc, #200]	; (8007a34 <SystemClock_Config+0x10c>)
- 800796a:	699b      	ldr	r3, [r3, #24]
- 800796c:	f423 4340 	bic.w	r3, r3, #49152	; 0xc000
- 8007970:	4a30      	ldr	r2, [pc, #192]	; (8007a34 <SystemClock_Config+0x10c>)
- 8007972:	f443 4380 	orr.w	r3, r3, #16384	; 0x4000
- 8007976:	6193      	str	r3, [r2, #24]
- 8007978:	4b2e      	ldr	r3, [pc, #184]	; (8007a34 <SystemClock_Config+0x10c>)
- 800797a:	699b      	ldr	r3, [r3, #24]
- 800797c:	f403 4340 	and.w	r3, r3, #49152	; 0xc000
- 8007980:	603b      	str	r3, [r7, #0]
- 8007982:	683b      	ldr	r3, [r7, #0]
+ 800796a:	6adb      	ldr	r3, [r3, #44]	; 0x2c
+ 800796c:	4a31      	ldr	r2, [pc, #196]	; (8007a34 <SystemClock_Config+0x10c>)
+ 800796e:	f043 0301 	orr.w	r3, r3, #1
+ 8007972:	62d3      	str	r3, [r2, #44]	; 0x2c
+ 8007974:	4b2f      	ldr	r3, [pc, #188]	; (8007a34 <SystemClock_Config+0x10c>)
+ 8007976:	6adb      	ldr	r3, [r3, #44]	; 0x2c
+ 8007978:	f003 0301 	and.w	r3, r3, #1
+ 800797c:	603b      	str	r3, [r7, #0]
+ 800797e:	683b      	ldr	r3, [r7, #0]
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
- 8007984:	bf00      	nop
- 8007986:	4b2b      	ldr	r3, [pc, #172]	; (8007a34 <SystemClock_Config+0x10c>)
- 8007988:	699b      	ldr	r3, [r3, #24]
- 800798a:	f403 5300 	and.w	r3, r3, #8192	; 0x2000
- 800798e:	f5b3 5f00 	cmp.w	r3, #8192	; 0x2000
- 8007992:	d1f8      	bne.n	8007986 <SystemClock_Config+0x5e>
+ 8007980:	bf00      	nop
+ 8007982:	4b2b      	ldr	r3, [pc, #172]	; (8007a30 <SystemClock_Config+0x108>)
+ 8007984:	699b      	ldr	r3, [r3, #24]
+ 8007986:	f403 5300 	and.w	r3, r3, #8192	; 0x2000
+ 800798a:	f5b3 5f00 	cmp.w	r3, #8192	; 0x2000
+ 800798e:	d1f8      	bne.n	8007982 <SystemClock_Config+0x5a>
 
   /** Macro to configure the PLL clock source
   */
   __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSE);
- 8007994:	4b28      	ldr	r3, [pc, #160]	; (8007a38 <SystemClock_Config+0x110>)
- 8007996:	6a9b      	ldr	r3, [r3, #40]	; 0x28
- 8007998:	f023 0303 	bic.w	r3, r3, #3
- 800799c:	4a26      	ldr	r2, [pc, #152]	; (8007a38 <SystemClock_Config+0x110>)
- 800799e:	f043 0302 	orr.w	r3, r3, #2
- 80079a2:	6293      	str	r3, [r2, #40]	; 0x28
+ 8007990:	4b29      	ldr	r3, [pc, #164]	; (8007a38 <SystemClock_Config+0x110>)
+ 8007992:	6a9b      	ldr	r3, [r3, #40]	; 0x28
+ 8007994:	f023 0303 	bic.w	r3, r3, #3
+ 8007998:	4a27      	ldr	r2, [pc, #156]	; (8007a38 <SystemClock_Config+0x110>)
+ 800799a:	f043 0302 	orr.w	r3, r3, #2
+ 800799e:	6293      	str	r3, [r2, #40]	; 0x28
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_CSI|RCC_OSCILLATORTYPE_HSE;
- 80079a4:	2311      	movs	r3, #17
- 80079a6:	627b      	str	r3, [r7, #36]	; 0x24
+ 80079a0:	2311      	movs	r3, #17
+ 80079a2:	627b      	str	r3, [r7, #36]	; 0x24
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
- 80079a8:	f44f 3380 	mov.w	r3, #65536	; 0x10000
- 80079ac:	62bb      	str	r3, [r7, #40]	; 0x28
+ 80079a4:	f44f 3380 	mov.w	r3, #65536	; 0x10000
+ 80079a8:	62bb      	str	r3, [r7, #40]	; 0x28
   RCC_OscInitStruct.CSIState = RCC_CSI_ON;
- 80079ae:	2380      	movs	r3, #128	; 0x80
- 80079b0:	643b      	str	r3, [r7, #64]	; 0x40
+ 80079aa:	2380      	movs	r3, #128	; 0x80
+ 80079ac:	643b      	str	r3, [r7, #64]	; 0x40
   RCC_OscInitStruct.CSICalibrationValue = RCC_CSICALIBRATION_DEFAULT;
- 80079b2:	2320      	movs	r3, #32
- 80079b4:	647b      	str	r3, [r7, #68]	; 0x44
+ 80079ae:	2320      	movs	r3, #32
+ 80079b0:	647b      	str	r3, [r7, #68]	; 0x44
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
- 80079b6:	2302      	movs	r3, #2
- 80079b8:	64bb      	str	r3, [r7, #72]	; 0x48
+ 80079b2:	2302      	movs	r3, #2
+ 80079b4:	64bb      	str	r3, [r7, #72]	; 0x48
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
- 80079ba:	2302      	movs	r3, #2
- 80079bc:	64fb      	str	r3, [r7, #76]	; 0x4c
-  RCC_OscInitStruct.PLL.PLLM = 16;
- 80079be:	2310      	movs	r3, #16
- 80079c0:	653b      	str	r3, [r7, #80]	; 0x50
-  RCC_OscInitStruct.PLL.PLLN = 128;
- 80079c2:	2380      	movs	r3, #128	; 0x80
- 80079c4:	657b      	str	r3, [r7, #84]	; 0x54
+ 80079b6:	2302      	movs	r3, #2
+ 80079b8:	64fb      	str	r3, [r7, #76]	; 0x4c
+  RCC_OscInitStruct.PLL.PLLM = 24;
+ 80079ba:	2318      	movs	r3, #24
+ 80079bc:	653b      	str	r3, [r7, #80]	; 0x50
+  RCC_OscInitStruct.PLL.PLLN = 480;
+ 80079be:	f44f 73f0 	mov.w	r3, #480	; 0x1e0
+ 80079c2:	657b      	str	r3, [r7, #84]	; 0x54
   RCC_OscInitStruct.PLL.PLLP = 2;
- 80079c6:	2302      	movs	r3, #2
- 80079c8:	65bb      	str	r3, [r7, #88]	; 0x58
+ 80079c4:	2302      	movs	r3, #2
+ 80079c6:	65bb      	str	r3, [r7, #88]	; 0x58
   RCC_OscInitStruct.PLL.PLLQ = 2;
- 80079ca:	2302      	movs	r3, #2
- 80079cc:	65fb      	str	r3, [r7, #92]	; 0x5c
+ 80079c8:	2302      	movs	r3, #2
+ 80079ca:	65fb      	str	r3, [r7, #92]	; 0x5c
   RCC_OscInitStruct.PLL.PLLR = 2;
- 80079ce:	2302      	movs	r3, #2
- 80079d0:	663b      	str	r3, [r7, #96]	; 0x60
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_0;
- 80079d2:	2300      	movs	r3, #0
- 80079d4:	667b      	str	r3, [r7, #100]	; 0x64
+ 80079cc:	2302      	movs	r3, #2
+ 80079ce:	663b      	str	r3, [r7, #96]	; 0x60
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_1;
+ 80079d0:	2304      	movs	r3, #4
+ 80079d2:	667b      	str	r3, [r7, #100]	; 0x64
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
- 80079d6:	2300      	movs	r3, #0
- 80079d8:	66bb      	str	r3, [r7, #104]	; 0x68
+ 80079d4:	2300      	movs	r3, #0
+ 80079d6:	66bb      	str	r3, [r7, #104]	; 0x68
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
- 80079da:	2300      	movs	r3, #0
- 80079dc:	66fb      	str	r3, [r7, #108]	; 0x6c
+ 80079d8:	2300      	movs	r3, #0
+ 80079da:	66fb      	str	r3, [r7, #108]	; 0x6c
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
- 80079de:	f107 0324 	add.w	r3, r7, #36	; 0x24
- 80079e2:	4618      	mov	r0, r3
- 80079e4:	f006 fba6 	bl	800e134 <HAL_RCC_OscConfig>
- 80079e8:	4603      	mov	r3, r0
- 80079ea:	2b00      	cmp	r3, #0
- 80079ec:	d001      	beq.n	80079f2 <SystemClock_Config+0xca>
+ 80079dc:	f107 0324 	add.w	r3, r7, #36	; 0x24
+ 80079e0:	4618      	mov	r0, r3
+ 80079e2:	f006 fba7 	bl	800e134 <HAL_RCC_OscConfig>
+ 80079e6:	4603      	mov	r3, r0
+ 80079e8:	2b00      	cmp	r3, #0
+ 80079ea:	d001      	beq.n	80079f0 <SystemClock_Config+0xc8>
   {
     Error_Handler();
- 80079ee:	f000 fa63 	bl	8007eb8 <Error_Handler>
+ 80079ec:	f000 fa64 	bl	8007eb8 <Error_Handler>
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
- 80079f2:	233f      	movs	r3, #63	; 0x3f
- 80079f4:	607b      	str	r3, [r7, #4]
+ 80079f0:	233f      	movs	r3, #63	; 0x3f
+ 80079f2:	607b      	str	r3, [r7, #4]
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
- 80079f6:	2303      	movs	r3, #3
- 80079f8:	60bb      	str	r3, [r7, #8]
+ 80079f4:	2303      	movs	r3, #3
+ 80079f6:	60bb      	str	r3, [r7, #8]
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
- 80079fa:	2300      	movs	r3, #0
- 80079fc:	60fb      	str	r3, [r7, #12]
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
- 80079fe:	2300      	movs	r3, #0
- 8007a00:	613b      	str	r3, [r7, #16]
-  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
- 8007a02:	2300      	movs	r3, #0
- 8007a04:	617b      	str	r3, [r7, #20]
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
- 8007a06:	2300      	movs	r3, #0
- 8007a08:	61bb      	str	r3, [r7, #24]
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
- 8007a0a:	2300      	movs	r3, #0
+ 80079f8:	2300      	movs	r3, #0
+ 80079fa:	60fb      	str	r3, [r7, #12]
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
+ 80079fc:	2308      	movs	r3, #8
+ 80079fe:	613b      	str	r3, [r7, #16]
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+ 8007a00:	2340      	movs	r3, #64	; 0x40
+ 8007a02:	617b      	str	r3, [r7, #20]
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+ 8007a04:	2340      	movs	r3, #64	; 0x40
+ 8007a06:	61bb      	str	r3, [r7, #24]
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
+ 8007a08:	f44f 6380 	mov.w	r3, #1024	; 0x400
  8007a0c:	61fb      	str	r3, [r7, #28]
-  RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
- 8007a0e:	2300      	movs	r3, #0
+  RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+ 8007a0e:	2340      	movs	r3, #64	; 0x40
  8007a10:	623b      	str	r3, [r7, #32]
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
  8007a12:	1d3b      	adds	r3, r7, #4
- 8007a14:	2102      	movs	r1, #2
+ 8007a14:	2104      	movs	r1, #4
  8007a16:	4618      	mov	r0, r3
  8007a18:	f006 ffba 	bl	800e990 <HAL_RCC_ClockConfig>
  8007a1c:	4603      	mov	r3, r0
@@ -14253,8 +14252,8 @@ void SystemClock_Config(void)
  8007a2a:	46bd      	mov	sp, r7
  8007a2c:	bd80      	pop	{r7, pc}
  8007a2e:	bf00      	nop
- 8007a30:	58000400 	.word	0x58000400
- 8007a34:	58024800 	.word	0x58024800
+ 8007a30:	58024800 	.word	0x58024800
+ 8007a34:	58000400 	.word	0x58000400
  8007a38:	58024400 	.word	0x58024400
 
 08007a3c <MX_DCMI_Init>:
@@ -14536,9 +14535,9 @@ static void MX_TIM6_Init(void)
  8007b88:	4b15      	ldr	r3, [pc, #84]	; (8007be0 <MX_TIM6_Init+0x68>)
  8007b8a:	4a16      	ldr	r2, [pc, #88]	; (8007be4 <MX_TIM6_Init+0x6c>)
  8007b8c:	601a      	str	r2, [r3, #0]
-  htim6.Init.Prescaler = 10000;
+  htim6.Init.Prescaler = 24000;
  8007b8e:	4b14      	ldr	r3, [pc, #80]	; (8007be0 <MX_TIM6_Init+0x68>)
- 8007b90:	f242 7210 	movw	r2, #10000	; 0x2710
+ 8007b90:	f645 52c0 	movw	r2, #24000	; 0x5dc0
  8007b94:	605a      	str	r2, [r3, #4]
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
  8007b96:	4b12      	ldr	r3, [pc, #72]	; (8007be0 <MX_TIM6_Init+0x68>)
@@ -14622,9 +14621,9 @@ static void MX_TIM7_Init(void)
  8007bf8:	4b15      	ldr	r3, [pc, #84]	; (8007c50 <MX_TIM7_Init+0x68>)
  8007bfa:	4a16      	ldr	r2, [pc, #88]	; (8007c54 <MX_TIM7_Init+0x6c>)
  8007bfc:	601a      	str	r2, [r3, #0]
-  htim7.Init.Prescaler = 10000;
+  htim7.Init.Prescaler = 24000;
  8007bfe:	4b14      	ldr	r3, [pc, #80]	; (8007c50 <MX_TIM7_Init+0x68>)
- 8007c00:	f242 7210 	movw	r2, #10000	; 0x2710
+ 8007c00:	f645 52c0 	movw	r2, #24000	; 0x5dc0
  8007c04:	605a      	str	r2, [r3, #4]
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
  8007c06:	4b12      	ldr	r3, [pc, #72]	; (8007c50 <MX_TIM7_Init+0x68>)
@@ -15568,17 +15567,17 @@ void HAL_LPTIM_MspInit(LPTIM_HandleTypeDef* hlptim)
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LPTIM1;
  8008208:	2320      	movs	r3, #32
  800820a:	613b      	str	r3, [r7, #16]
-    PeriphClkInitStruct.PLL2.PLL2M = 16;
- 800820c:	2310      	movs	r3, #16
+    PeriphClkInitStruct.PLL2.PLL2M = 48;
+ 800820c:	2330      	movs	r3, #48	; 0x30
  800820e:	617b      	str	r3, [r7, #20]
-    PeriphClkInitStruct.PLL2.PLL2N = 128;
- 8008210:	2380      	movs	r3, #128	; 0x80
+    PeriphClkInitStruct.PLL2.PLL2N = 200;
+ 8008210:	23c8      	movs	r3, #200	; 0xc8
  8008212:	61bb      	str	r3, [r7, #24]
     PeriphClkInitStruct.PLL2.PLL2P = 4;
  8008214:	2304      	movs	r3, #4
  8008216:	61fb      	str	r3, [r7, #28]
-    PeriphClkInitStruct.PLL2.PLL2Q = 2;
- 8008218:	2302      	movs	r3, #2
+    PeriphClkInitStruct.PLL2.PLL2Q = 4;
+ 8008218:	2304      	movs	r3, #4
  800821a:	623b      	str	r3, [r7, #32]
     PeriphClkInitStruct.PLL2.PLL2R = 2;
  800821c:	2302      	movs	r3, #2
@@ -32828,11 +32827,11 @@ uint32_t HAL_RCC_GetSysClockFreq(void)
  800efd0:	58024400 	.word	0x58024400
  800efd4:	03d09000 	.word	0x03d09000
  800efd8:	003d0900 	.word	0x003d0900
- 800efdc:	017d7840 	.word	0x017d7840
+ 800efdc:	02dc6c00 	.word	0x02dc6c00
  800efe0:	46000000 	.word	0x46000000
  800efe4:	4c742400 	.word	0x4c742400
  800efe8:	4a742400 	.word	0x4a742400
- 800efec:	4bbebc20 	.word	0x4bbebc20
+ 800efec:	4c371b00 	.word	0x4c371b00
 
 0800eff0 <HAL_RCC_GetHCLKFreq>:
   * @note   The SystemD2Clock CMSIS variable is used to store System domain2 Clock Frequency
@@ -35908,7 +35907,7 @@ void HAL_RCCEx_GetPLL2ClockFreq(PLL2_ClocksTypeDef* PLL2_Clocks)
  80101f8:	46000000 	.word	0x46000000
  80101fc:	4c742400 	.word	0x4c742400
  8010200:	4a742400 	.word	0x4a742400
- 8010204:	4bbebc20 	.word	0x4bbebc20
+ 8010204:	4c371b00 	.word	0x4c371b00
 
 08010208 <HAL_RCCEx_GetPLL3ClockFreq>:
   *         right PLL3CLK value. Otherwise, any configuration based on this function will be incorrect.
@@ -36185,7 +36184,7 @@ void HAL_RCCEx_GetPLL3ClockFreq(PLL3_ClocksTypeDef* PLL3_Clocks)
  80104a0:	46000000 	.word	0x46000000
  80104a4:	4c742400 	.word	0x4c742400
  80104a8:	4a742400 	.word	0x4a742400
- 80104ac:	4bbebc20 	.word	0x4bbebc20
+ 80104ac:	4c371b00 	.word	0x4c371b00
 
 080104b0 <RCCEx_PLL2_Config>:
   * @note   PLL2 is temporary disabled to apply new parameters
