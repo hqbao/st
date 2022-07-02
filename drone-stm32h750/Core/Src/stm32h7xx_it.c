@@ -66,17 +66,28 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 6 // 1: 6 axis, 2: PID, 3: ESC, 4: Remote control, 5: PID tuning, 6: Calibration
+#define MONITOR 4 // 1: Calibration,
+                  // 2: 6 axis,
+                  // 3: ESC,
+                  // 4: Remote control,
+                  // 5: PID,
+                  // 6: Drift
+
+#define CALIBRATE_ANGLE
 
 // Motor PWM values
-#define INIT_SPEED 2000
-#define MIN_SPEED 2400
-#define MAX_SPEED 4800
+#define INIT_SPEED 2400
+#define MIN_SPEED (INIT_SPEED + 150)
+#define MAX_SPEED 5200
 
-#define MIN_THROTTLE 0
-#define MIN_YAW -199
-#define MIN_PITCH -199
-#define MAX_ROLL 199
+#define MIN_PWN_IN_CAP 249
+#define MAX_PWN_IN_CAP 498
+#define RANGE_PWM_IN_CAP (MAX_PWN_IN_CAP - MIN_PWN_IN_CAP)
+
+#define MIN_THROTTLE (-RANGE_PWM_IN_CAP/2)
+#define MIN_YAW (-RANGE_PWM_IN_CAP/2)
+#define MIN_PITCH (-RANGE_PWM_IN_CAP/2)
+#define MAX_ROLL (-RANGE_PWM_IN_CAP/2)
 
 #define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
@@ -100,20 +111,20 @@ typedef struct {
 #define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.2
 
 // PID
-#define P_PITCH_GAIN 10.0 // 10.0
+#define P_PITCH_GAIN 3.0 // 10.0
 #define I_PITCH_GAIN 0.0 // 0.01
 #define I_PITCH_PERIOD 0.0 // 2.0
-#define D_PITCH_GAIN 4.0 // 9.0
+#define D_PITCH_GAIN 1.0 // 9.0
 
-#define P_ROLL_GAIN 10.0
+#define P_ROLL_GAIN 3.0
 #define I_ROLL_GAIN 0.0
 #define I_ROLL_PERIOD 0.0
-#define D_ROLL_GAIN 9.0
+#define D_ROLL_GAIN 1.0
 
-#define P_YAW_GAIN 7.0
+#define P_YAW_GAIN 3.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 5.0
+#define D_YAW_GAIN 1.0
 
 #define LIMIT(number, min, max) (number < min ? min : (number > max ? max : number))
 
@@ -197,7 +208,15 @@ void console(const char *str);
 void set_speed(uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4);
 void schedule_400hz(void);
 void schedule_20hz(void);
+void schedule_10hz(void);
 void fly(void);
+
+void blink(void) {
+  static int blink = 0;
+  if (blink == 40) HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+  if (blink >= 40) blink = 0;
+  blink += 1;
+}
 
 /* USER CODE END PFP */
 
@@ -570,7 +589,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_RESET) {
           pwm_in[1] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
           int value = pwm_in[1] - pwm_in[0];
-          if (value >= 350 && value <= 850) { // [400, 798]
+          if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[2] = value;
           }
         }
@@ -583,7 +602,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_RESET) {
           pwm_in[4] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
           int value = pwm_in[4] - pwm_in[3];
-          if (value >= 350 && value <= 850) {
+          if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[5] = value;
           }
         }
@@ -596,7 +615,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_RESET) {
           pwm_in[7] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_3);
           int value = pwm_in[7] - pwm_in[6];
-          if (value >= 350 && value <= 850) {
+          if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[8] = value;
           }
         }
@@ -609,7 +628,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_RESET) {
           pwm_in[10] = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_4);
           int value = pwm_in[10] - pwm_in[9];
-          if (value >= 350 && value <= 850) {
+          if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[11] = value;
           }
         }
@@ -618,10 +637,10 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         break;
     }
 
-    g_throttle = average_filter_update(&g_af[0], pwm_in[2] - 400);
-    g_yaw = average_filter_update(&g_af[1], pwm_in[11] - 600);
-    g_pitch = average_filter_update(&g_af[2], pwm_in[8] - 600);
-    g_roll = average_filter_update(&g_af[3], pwm_in[5] - 600);
+    g_throttle = average_filter_update(&g_af[0], pwm_in[2] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    g_yaw = average_filter_update(&g_af[1], pwm_in[5] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    g_pitch = average_filter_update(&g_af[2], pwm_in[11] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    g_roll = average_filter_update(&g_af[3], pwm_in[8] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
   }
 
   if (htim->Instance == TIM5) {
@@ -632,9 +651,9 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         }
 
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET) {
-          pwm_in[13] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+          pwm_in[13] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_1);
           int value = pwm_in[13] - pwm_in[12];
-          if (value >= 350 && value <= 850) { // [399, 799]
+          if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[14] = value;
           }
         }
@@ -643,23 +662,23 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         break;
     }
 
-    g_stick1 = average_filter_update(&g_af[4], pwm_in[14] - 400);
+    g_stick1 = pwm_in[14] > MIN_PWN_IN_CAP + 0.5*RANGE_PWM_IN_CAP ? 1 : 0;
   }
 }
 
 void schedule_400hz(void) {
   // Update from sensors
-//  MPU6050_update(&g_mpu6050);
-//  MS5611_update(&g_ms5611);
-//  fly();
+  MPU6050_update(&g_mpu6050);
+  MS5611_update(&g_ms5611);
+  fly();
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+
 }
 
 void schedule_20hz(void) {
-  static char msg[16];
+  static char line[16];
   static int starts[4] = {-1, -1, -1, -1};
 
   for (int t = 0; t < 4; t += 1) {
@@ -697,16 +716,16 @@ void schedule_20hz(void) {
     }
 
     if (start > -1 && end > -1) {
-      memset(msg, 0, 16);
+      memset(line, 0, 16);
 
       if (start < end) {
-        memcpy(msg, &p[start], end - start);
+        memcpy(line, &p[start], end - start);
         memset(&p[start], 0, end - start);
       }
       else if (start > end) {
-        memcpy(msg, &p[start], UART_BUF_SIZE - start);
+        memcpy(line, &p[start], UART_BUF_SIZE - start);
         memset(&p[start], 0, UART_BUF_SIZE - start);
-        memcpy(&msg[UART_BUF_SIZE - start], p, end);
+        memcpy(&line[UART_BUF_SIZE - start], p, end);
         memset(p, 0, end);
       }
 
@@ -714,13 +733,13 @@ void schedule_20hz(void) {
 
       int idx = 0;
       for (int idx = 0; idx < 16; idx += 1) {
-        if (msg[idx] == ',') {
+        if (line[idx] == ',') {
           break;
         }
       }
-      msg[idx] = 0;
-      int dy = atoi(&msg[1]);
-      int dx = atoi(&msg[idx+1]);
+      line[idx] = 0;
+      int dy = atoi(&line[1]);
+      int dx = atoi(&line[idx+1]);
       switch (t) {
       case 0: drift.lf = dx;drift.v1 = dy; break;
       case 1: drift.rf = dx;drift.v2 = dy; break;
@@ -730,11 +749,57 @@ void schedule_20hz(void) {
     }
   }
 
+  static char run_10hz = 1;
+  if (run_10hz) schedule_10hz();
+  run_10hz = !run_10hz;
+}
+
+void schedule_10hz(void) {
+#if MONITOR == 1
   memset(monitor, 0, 64);
-  sprintf(monitor, "%d,%d,%d,%d,%d\n",
+  sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
+      (int)g_mpu6050.ax, (int)g_mpu6050.ay, (int)g_mpu6050.az,
+      (int)g_mpu6050.gx, (int)g_mpu6050.gy, (int)g_mpu6050.gz);
+  console(monitor);
+#endif // Calibration
+
+#if MONITOR == 2
+  memset(monitor, 0, 64);
+  sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
+      (int)g_mpu6050.angle_x, (int)g_mpu6050.angle_y, (int)g_mpu6050.angle_z,
+      (int)g_mpu6050.gyro_x, (int)g_mpu6050.gyro_y, (int)g_mpu6050.gyro_z);
+  console(monitor);
+#endif // 6 axis
+
+#if MONITOR == 3
+  memset(monitor, 0, 120);
+  sprintf(monitor, "$%d,%d,%d,%d\n",
+      (int)g_sig1, (int)g_sig2, (int)g_sig3, (int)g_sig4);
+  console(monitor);
+#endif // ESC
+
+#if MONITOR == 4
+  memset(monitor, 0, 120);
+  sprintf(monitor, "$%d,%d,0,%d,%d,%d\n",
+      (int)g_throttle, (int)g_yaw, (int)g_pitch, (int)g_roll, (int)g_stick1);
+  console(monitor);
+#endif // Remote control
+
+#if MONITOR == 5
+  memset(monitor, 0, 64);
+  sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
+      (int)g_P_pitch, (int)g_I_pitch, (int)g_D_pitch,
+      (int)g_P_roll, (int)g_I_roll, (int)g_D_roll);
+  console(monitor);
+#endif // 6 axis
+
+#if MONITOR == 6
+  memset(monitor, 0, 64);
+  sprintf(monitor, "$%d,%d,%d,%d,%d\n",
       drift.lf, drift.rf, drift.lb, drift.rb,
       drift.v1 + drift.v2 + drift.v3 + drift.v4);
   console(monitor);
+#endif // Drift
 }
 
 void fly() {
@@ -755,9 +820,9 @@ void fly() {
   }
 
   // Keep alive for the fly
-  if (g_stick1 < 100) {
-    fly_mode = init;
-  }
+//  if (g_stick1 == 0) {
+//    fly_mode = init;
+//  }
 
   switch (fly_mode) {
     case init:
@@ -819,12 +884,12 @@ void fly() {
       g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
       g_D_yaw = LIMIT(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
-      int throttle = MIN_SPEED + (int)(70.0f*sqrt(g_throttle));
+      float background = MIN_SPEED + 8*(11.18f*sqrt(g_throttle > 0 ? g_throttle : 0));
 
-      g_sig1 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = throttle + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = throttle - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig1 = background + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = background + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = background - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = background - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = LIMIT(g_sig1, MIN_SPEED, MAX_SPEED);
       g_sig2 = LIMIT(g_sig2, MIN_SPEED, MAX_SPEED);
@@ -843,15 +908,17 @@ void fly() {
         fly_mode = init;
       }
 
+      blink();
       break;
     case landing:
 
       break;
     case testing:
-      g_sig1 = MIN_SPEED - 100 + LIMIT(5*g_throttle, 0, 4800);
-      g_sig2 = MIN_SPEED - 100 + LIMIT(5*g_yaw, 0, 4800);
-      g_sig3 = MIN_SPEED - 100 + LIMIT(5*g_pitch, 0, 4800);
-      g_sig4 = MIN_SPEED - 100 + LIMIT(5*g_roll, 0, 4800);
+      blink();
+      g_sig1 = MIN_SPEED + LIMIT(20*g_throttle, 0, MAX_SPEED);
+      g_sig2 = MIN_SPEED + LIMIT(20*g_yaw, 0, MAX_SPEED);
+      g_sig3 = MIN_SPEED + LIMIT(20*g_pitch, 0, MAX_SPEED);
+      g_sig4 = MIN_SPEED + LIMIT(20*g_roll, 0, MAX_SPEED);
 
       // Pull down the stick to stop
       if (g_throttle <= MIN_THROTTLE) {
@@ -895,23 +962,40 @@ void init_sensors() {
     flash(error);
   }
 
-  int i = 0;
   int gx = 0;
   int gy = 0;
   int gz = 0;
-  while (i < 1000) {
+
+#ifdef CALIBRATE_ANGLE
+  int ax = 0;
+  int ay = 0;
+#endif
+
+  for (int i = 0; i < 1100; i += 1) {
     MPU6050_update(&g_mpu6050);
     HAL_Delay(3);
+    if (i < 100) continue;
     gx += g_mpu6050.gx;
     gy += g_mpu6050.gy;
     gz += g_mpu6050.gz;
-    i += 1;
+
+#ifdef CALIBRATE_ANGLE
+    ax += g_mpu6050.ax;
+    ay += g_mpu6050.ay;
+#endif
+
   }
+
   gx = gx/1000;
   gy = gy/1000;
   gz = gz/1000;
 
-  MPU6050_set_offset(&g_mpu6050, 0, 0, 0, -gx, -gy, -gz);
+#ifdef CALIBRATE_ANGLE
+  ax = ax/1000;
+  ay = ay/1000;
+#endif
+
+  MPU6050_set_offset(&g_mpu6050, -ax, -ay, 0, -gx, -gy, -gz);
 
   // This takes quite long
   while (1) {
