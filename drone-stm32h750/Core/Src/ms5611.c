@@ -102,20 +102,23 @@ int MS5611_init(ms5611_t *ms5611, I2C_HandleTypeDef *i2c) {
 
 void MS5611_req_temperature(ms5611_t *ms5611, OSR osr) {
   ms5611->tx = TEMP_OSR_256 + (2 * osr);
-  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
+  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 10);
+//  HAL_I2C_Master_Transmit_DMA(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1);
 }
 
 void MS5611_req_pressure(ms5611_t *ms5611, OSR osr) {
   ms5611->tx = PRESSURE_OSR_256 + (2 * osr);
-  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
+  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 10);
+//  HAL_I2C_Master_Transmit_DMA(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1);
 }
 
 void MS5611_read_temperature(ms5611_t *ms5611) {
   //Read ADC
   ms5611->tx = 0x00;
-  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
-  HAL_I2C_Master_Receive(ms5611->i2c, (MS5611_ADDR << 1) | 0x01, ms5611->rx_temp, 3, 100);
-//  HAL_I2C_Mem_Read(ms5611->i2c, MS5611_ADDR <<1 , 0x00, 1, ms5611->rx_temp, 3, 100);
+//  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
+//  HAL_I2C_Master_Receive(ms5611->i2c, (MS5611_ADDR << 1) | 0x01, ms5611->rx_temp, 3, 100);
+  HAL_I2C_Mem_Read(ms5611->i2c, MS5611_ADDR << 1 , 0x00, 1, ms5611->rx_temp, 3, 10);
+//  HAL_I2C_Mem_Read_DMA(ms5611->i2c, MS5611_ADDR <<1 , 0x00, 1, ms5611->rx_temp, 3);
 
   ms5611->digi_tem_D2 = (ms5611->rx_temp[0] << 16) | (ms5611->rx_temp[1] << 8) | ms5611->rx_temp[2];
 }
@@ -123,9 +126,10 @@ void MS5611_read_temperature(ms5611_t *ms5611) {
 void MS5611_read_pressure(ms5611_t *ms5611) {
   //Read ADC
   ms5611->tx = 0x00;
-  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
-  HAL_I2C_Master_Receive(ms5611->i2c, (MS5611_ADDR << 1) | 0x01, ms5611->rx_press, 3, 100);
-  //HAL_I2C_Mem_Read(ms5611->i2c, MS5611_ADDR <<1, 0x00, 1, ms5611->rx_press, 3, 100);
+//  HAL_I2C_Master_Transmit(ms5611->i2c, MS5611_ADDR << 1, &ms5611->tx, 1, 100);
+//  HAL_I2C_Master_Receive(ms5611->i2c, (MS5611_ADDR << 1) | 0x01, ms5611->rx_press, 3, 100);
+  HAL_I2C_Mem_Read(ms5611->i2c, MS5611_ADDR << 1, 0x00, 1, ms5611->rx_press, 3, 10);
+//  HAL_I2C_Mem_Read_DMA(ms5611->i2c, MS5611_ADDR << 1, 0x00, 1, ms5611->rx_press, 3);
 
   ms5611->digi_psr_D1 = ms5611->rx_press[0] << 16 | ms5611->rx_press[1] << 8 | ms5611->rx_press[2];
 }

@@ -66,12 +66,13 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 1 // 1: Calibration,
+#define MONITOR 2 // 1: Calibration,
                   // 2: 6 axis,
                   // 3: ESC,
                   // 4: Remote control,
                   // 5: PID,
                   // 6: Drift
+                  // 7: Pressure
 
 // Motor PWM values
 #define INIT_SPEED 2400
@@ -697,7 +698,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 void schedule_400hz(void) {
   // Update from sensors
   MPU6050_update(&g_mpu6050);
-//  MS5611_update(&g_ms5611);
+  MS5611_update(&g_ms5611);
   fly();
 }
 
@@ -828,6 +829,15 @@ void schedule_10hz(void) {
       drift.v1 + drift.v2 + drift.v3 + drift.v4);
   console(monitor);
 #endif // Drift
+
+#if MONITOR == 7
+  memset(monitor, 0, 64);
+  sprintf(monitor, "$%d,%d,%d\n",
+      (int)(g_ms5611.P*10-960000),
+      (int)(g_ms5611.slow_pressure*1000-960000),
+      (int)(g_ms5611.fast_pressure*1000-960000));
+  console(monitor);
+#endif // Pressure
 }
 
 void fly() {
@@ -990,7 +1000,7 @@ void init_sensors() {
     flash(error);
   }
 
-//  MPU6050_calibrate(&g_mpu6050);
+  MPU6050_calibrate(&g_mpu6050);
 
   // This takes quite long
 //  while (1) {
