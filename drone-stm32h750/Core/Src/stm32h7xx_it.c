@@ -66,14 +66,12 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 4 // 1: Calibration,
+#define MONITOR 1 // 1: Calibration,
                   // 2: 6 axis,
                   // 3: ESC,
                   // 4: Remote control,
                   // 5: PID,
                   // 6: Drift
-
-#define CALIBRATE_ANGLE
 
 // Motor PWM values
 #define INIT_SPEED 2400
@@ -226,6 +224,8 @@ void blink(void) {
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern DMA_HandleTypeDef hdma_i2c1_rx;
+extern I2C_HandleTypeDef hi2c1;
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim6;
@@ -447,6 +447,20 @@ void DMA1_Stream3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 stream4 global interrupt.
+  */
+void DMA1_Stream4_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Stream4_IRQn 0 */
+
+  /* USER CODE END DMA1_Stream4_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_i2c1_rx);
+  /* USER CODE BEGIN DMA1_Stream4_IRQn 1 */
+
+  /* USER CODE END DMA1_Stream4_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM4 global interrupt.
   */
 void TIM4_IRQHandler(void)
@@ -458,6 +472,20 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 1 */
 
   /* USER CODE END TIM4_IRQn 1 */
+}
+
+/**
+  * @brief This function handles I2C1 event interrupt.
+  */
+void I2C1_EV_IRQHandler(void)
+{
+  /* USER CODE BEGIN I2C1_EV_IRQn 0 */
+
+  /* USER CODE END I2C1_EV_IRQn 0 */
+  HAL_I2C_EV_IRQHandler(&hi2c1);
+  /* USER CODE BEGIN I2C1_EV_IRQn 1 */
+
+  /* USER CODE END I2C1_EV_IRQn 1 */
 }
 
 /**
@@ -669,7 +697,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 void schedule_400hz(void) {
   // Update from sensors
   MPU6050_update(&g_mpu6050);
-  MS5611_update(&g_ms5611);
+//  MS5611_update(&g_ms5611);
   fly();
 }
 
@@ -962,49 +990,16 @@ void init_sensors() {
     flash(error);
   }
 
-  int gx = 0;
-  int gy = 0;
-  int gz = 0;
-
-#ifdef CALIBRATE_ANGLE
-  int ax = 0;
-  int ay = 0;
-#endif
-
-  for (int i = 0; i < 1100; i += 1) {
-    MPU6050_update(&g_mpu6050);
-    HAL_Delay(3);
-    if (i < 100) continue;
-    gx += g_mpu6050.gx;
-    gy += g_mpu6050.gy;
-    gz += g_mpu6050.gz;
-
-#ifdef CALIBRATE_ANGLE
-    ax += g_mpu6050.ax;
-    ay += g_mpu6050.ay;
-#endif
-
-  }
-
-  gx = gx/1000;
-  gy = gy/1000;
-  gz = gz/1000;
-
-#ifdef CALIBRATE_ANGLE
-  ax = ax/1000;
-  ay = ay/1000;
-#endif
-
-  MPU6050_set_offset(&g_mpu6050, -ax, -ay, 0, -gx, -gy, -gz);
+//  MPU6050_calibrate(&g_mpu6050);
 
   // This takes quite long
-  while (1) {
-    int error = MS5611_init(
-        &g_ms5611,
-        &hi2c1);
-    if (error == 0) break;
-    flash(error);
-  }
+//  while (1) {
+//    int error = MS5611_init(
+//        &g_ms5611,
+//        &hi2c1);
+//    if (error == 0) break;
+//    flash(error);
+//  }
 }
 
 /* USER CODE END 1 */

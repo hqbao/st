@@ -47,6 +47,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim4;
@@ -140,16 +141,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_I2C1_Init();
+
   MX_USART1_UART_Init();
   MX_TIM6_Init();
   MX_TIM2_Init();
   MX_TIM4_Init();
   MX_TIM5_Init();
   MX_TIM7_Init();
+  MX_DMA_Init();
+  MX_I2C1_Init();
   MX_UART4_Init();
   MX_UART5_Init();
-  MX_DMA_Init();
   MX_UART7_Init();
   MX_UART8_Init();
   /* USER CODE BEGIN 2 */
@@ -850,6 +852,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 
 }
 

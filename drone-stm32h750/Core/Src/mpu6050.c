@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define CALIBRATE_ANGLE
+
 #define MPU6050_I2C_ADDR 0xD0
 
 #define FREQ 400
@@ -206,9 +208,49 @@ void MPU6050_set_offset(mpu6050_t *mpu6050,
   mpu6050->gz_offset = gz_offset;
 }
 
+void MPU6050_calibrate(mpu6050_t *mpu6050) {
+  int gx = 0;
+  int gy = 0;
+  int gz = 0;
+
+#ifdef CALIBRATE_ANGLE
+  int ax = 0;
+  int ay = 0;
+#endif
+
+  HAL_Delay(2000);
+  for (int i = 0; i < 1100; i += 1) {
+    MPU6050_update(mpu6050);
+    HAL_Delay(3);
+    if (i < 100) continue;
+    gx += mpu6050->gx;
+    gy += mpu6050->gy;
+    gz += mpu6050->gz;
+
+#ifdef CALIBRATE_ANGLE
+    ax += mpu6050->ax;
+    ay += mpu6050->ay;
+#endif
+
+  }
+
+  gx = gx/1000;
+  gy = gy/1000;
+  gz = gz/1000;
+
+#ifdef CALIBRATE_ANGLE
+  ax = ax/1000;
+  ay = ay/1000;
+#endif
+
+  MPU6050_set_offset(mpu6050, -ax, -ay, 0, -gx, -gy, -gz);
+}
+
 void MPU6050_update(mpu6050_t *mpu6050) {
   // Read MPU6050
-  HAL_I2C_Mem_Read(mpu6050->i2c, mpu6050->address, 0x3B, 1, mpu6050->rx_buffer, 14, 10);
+//  HAL_I2C_Mem_Read(mpu6050->i2c, mpu6050->address, 0x3B, 1, mpu6050->rx_buffer, 14, 10);
+//  HAL_I2C_Mem_Read_IT(mpu6050->i2c, mpu6050->address, 0x3B, 1, mpu6050->rx_buffer, 14);
+  HAL_I2C_Mem_Read_DMA(mpu6050->i2c, mpu6050->address, 0x3B, 1, mpu6050->rx_buffer, 14);
   MPU6050_parse_6axis(mpu6050);
 }
 

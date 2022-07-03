@@ -72,6 +72,7 @@ int MPU6050_init(mpu6050_t *mpu6050, I2C_HandleTypeDef *i2c,
 void MPU6050_set_offset(mpu6050_t *mpu6050,
     float ax_offset, float ay_offset, float az_offset,
     float gx_offset, float gy_offset, float gz_offset);
+void MPU6050_calibrate(mpu6050_t *mpu6050);
 void MPU6050_update(mpu6050_t *mpu6050);
 void MPU6050_parse_6axis(mpu6050_t *mpu6050);
 
