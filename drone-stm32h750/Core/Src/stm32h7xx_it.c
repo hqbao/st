@@ -46,14 +46,14 @@ typedef enum {
 } FlyMode;
 
 typedef struct {
-  int lf; // Left forward
-  int rf; // Right forward
-  int lb; // Left backward
-  int rb; // Right backward
-  int v1; // Vertical
-  int v2; // Vertical
-  int v3; // Vertical
-  int v4; // Vertical
+  int front; // Left forward
+  int back; // Right forward
+  int left; // Left backward
+  int right; // Right backward
+  int vert1; // Vertical
+  int vert2; // Vertical
+  int vert3; // Vertical
+  int vert4; // Vertical
 } drift_t;
 
 /* USER CODE END TD */
@@ -66,27 +66,29 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 2 // 1: Calibration,
+#define MONITOR 8 // 1: Calibration,
                   // 2: 6 axis,
                   // 3: ESC,
                   // 4: Remote control,
                   // 5: PID,
                   // 6: Drift
-                  // 7: Pressure
+                  // 7: Height
+                  // 8: PID Error
 
 // Motor PWM values
 #define INIT_SPEED 2400
-#define MIN_SPEED (INIT_SPEED + 150)
+#define MIN_SPEED (INIT_SPEED + 200)
 #define MAX_SPEED 5200
 
 #define MIN_PWN_IN_CAP 249
 #define MAX_PWN_IN_CAP 498
 #define RANGE_PWM_IN_CAP (MAX_PWN_IN_CAP - MIN_PWN_IN_CAP)
 
-#define MIN_THROTTLE (-RANGE_PWM_IN_CAP/2)
-#define MIN_YAW (-RANGE_PWM_IN_CAP/2)
-#define MIN_PITCH (-RANGE_PWM_IN_CAP/2)
-#define MAX_ROLL (-RANGE_PWM_IN_CAP/2)
+#define MIN_THROTTLE 0
+#define MAX_THROTTLE RANGE_PWM_IN_CAP
+#define MIN_YAW ((int)(-RANGE_PWM_IN_CAP/2)+2)
+#define MIN_PITCH ((int)(-RANGE_PWM_IN_CAP/2)+2)
+#define MAX_ROLL ((int)(RANGE_PWM_IN_CAP/2)-2)
 
 #define MIN_PITCH_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_PITCH_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
@@ -102,28 +104,30 @@ typedef struct {
 #define MIN_ROLL_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
 #define MAX_ROLL_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
-#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.2
-#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.2
+#define MIN_YAW_PROPORTION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_YAW_PROPORTION (MAX_SPEED - MIN_SPEED)*0.3
 #define MIN_YAW_INTEGRAL -(MAX_SPEED - MIN_SPEED)*0.1
 #define MAX_YAW_INTEGRAL (MAX_SPEED - MIN_SPEED)*0.1
-#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.2
-#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.2
+#define MIN_YAW_DERIVATION -(MAX_SPEED - MIN_SPEED)*0.3
+#define MAX_YAW_DERIVATION (MAX_SPEED - MIN_SPEED)*0.3
 
 // PID
-#define P_PITCH_GAIN 3.0 // 10.0
+#define P_PITCH_GAIN 7.0 // 10.0
 #define I_PITCH_GAIN 0.0 // 0.01
 #define I_PITCH_PERIOD 0.0 // 2.0
-#define D_PITCH_GAIN 1.0 // 9.0
+#define D_PITCH_GAIN 1.6 // 9.0
 
-#define P_ROLL_GAIN 3.0
+#define P_ROLL_GAIN 7.0
 #define I_ROLL_GAIN 0.0
 #define I_ROLL_PERIOD 0.0
-#define D_ROLL_GAIN 1.0
+#define D_ROLL_GAIN 1.6
 
-#define P_YAW_GAIN 3.0
+#define P_YAW_GAIN 7.0
 #define I_YAW_GAIN 0.0 // No use due to drifting P
 #define I_YAW_PERIOD 0.0 // No use due to drifting P
-#define D_YAW_GAIN 1.0
+#define D_YAW_GAIN 2.0
+
+#define DRIFT_GAIN 0.0
 
 #define LIMIT(number, min, max) (number < min ? min : (number > max ? max : number))
 
@@ -133,6 +137,10 @@ typedef struct {
 /* USER CODE BEGIN PV */
 
 // PID
+float g_angle_error_x = 0;
+float g_angle_error_y = 0;
+float g_angle_error_z = 0;
+
 float g_P_pitch = 0;
 float g_I_pitch = 0;
 float g_I_pitch_accumulated = 0;
@@ -175,13 +183,15 @@ float g_I_yaw_gain = I_YAW_GAIN;
 float g_I_yaw_period = I_YAW_PERIOD;
 float g_D_yaw_gain = D_YAW_GAIN;
 
+float g_height = 0;
+
 // Drift detection
-drift_t drift;
+drift_t drift = {0, 0, 0, 0, 0, 0, 0, 0};
 
 // Monitor
 char monitor[120];
 
-average_filter_t g_af[5];
+average_filter_t g_af[6];
 
 #define UART_BUF_SIZE 256
 uint8_t g_uart_rx_buffer1[UART_BUF_SIZE];
@@ -231,6 +241,7 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
+extern TIM_HandleTypeDef htim17;
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern DMA_HandleTypeDef hdma_uart5_rx;
 extern DMA_HandleTypeDef hdma_uart7_rx;
@@ -605,6 +616,20 @@ void UART8_IRQHandler(void)
   /* USER CODE END UART8_IRQn 1 */
 }
 
+/**
+  * @brief This function handles TIM17 global interrupt.
+  */
+void TIM17_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM17_IRQn 0 */
+
+  /* USER CODE END TIM17_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim17);
+  /* USER CODE BEGIN TIM17_IRQn 1 */
+
+  /* USER CODE END TIM17_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
@@ -666,10 +691,14 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         break;
     }
 
-    g_throttle = average_filter_update(&g_af[0], pwm_in[2] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    g_yaw = average_filter_update(&g_af[1], pwm_in[5] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    g_pitch = average_filter_update(&g_af[2], pwm_in[11] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    g_roll = average_filter_update(&g_af[3], pwm_in[8] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    float throttle = average_filter_update(&g_af[0], pwm_in[2] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    float yaw = average_filter_update(&g_af[1], pwm_in[5] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    float pitch = average_filter_update(&g_af[2], pwm_in[11] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    float roll = average_filter_update(&g_af[3], pwm_in[8] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+    if (abs(throttle) > 5) g_throttle = LIMIT(g_throttle + 0.01*throttle, MIN_THROTTLE, MAX_THROTTLE);
+    if (abs(g_yaw - yaw) > 1) g_yaw = yaw;
+    if (abs(g_pitch - pitch) > 1) g_pitch = pitch;
+    if (abs(g_roll - roll) > 1) g_roll = roll;
   }
 
   if (htim->Instance == TIM5) {
@@ -693,12 +722,40 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 
     g_stick1 = pwm_in[14] > MIN_PWN_IN_CAP + 0.5*RANGE_PWM_IN_CAP ? 1 : 0;
   }
+
+  static char measuring = 0;
+  if (measuring == 0) {
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+    measuring = 1;
+  }
+
+  if (measuring == 1 && htim->Instance == TIM17) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_1:
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET) {
+          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_SET) {
+          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
+          int value = pwm_in[16] - pwm_in[15];
+          pwm_in[17] = value;
+          measuring = 0;
+        }
+        break;
+      default:
+        break;
+    }
+
+    g_height = pwm_in[17];
+  }
 }
 
 void schedule_400hz(void) {
   // Update from sensors
   MPU6050_update(&g_mpu6050);
-  MS5611_update(&g_ms5611);
+//  MS5611_update(&g_ms5611);
   fly();
 }
 
@@ -761,7 +818,7 @@ void schedule_20hz(void) {
       starts[t] = -1;
 
       int idx = 0;
-      for (int idx = 0; idx < 16; idx += 1) {
+      for (idx = 0; idx < 16; idx += 1) {
         if (line[idx] == ',') {
           break;
         }
@@ -770,10 +827,10 @@ void schedule_20hz(void) {
       int dy = atoi(&line[1]);
       int dx = atoi(&line[idx+1]);
       switch (t) {
-      case 0: drift.lf = dx;drift.v1 = dy; break;
-      case 1: drift.rf = dx;drift.v2 = dy; break;
-      case 2: drift.rb = dx;drift.v3 = dy; break;
-      case 3: drift.lb = dx;drift.v4 = dy; break;
+      case 0: drift.left = dx;drift.vert1 = dy; break;
+      case 1: drift.back = dx;drift.vert2 = dy; break;
+      case 2: drift.right = dx;drift.vert3 = dy; break;
+      case 3: drift.front = dx;drift.vert4 = dy; break;
       }
     }
   }
@@ -787,8 +844,8 @@ void schedule_10hz(void) {
 #if MONITOR == 1
   memset(monitor, 0, 64);
   sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
-      (int)g_mpu6050.ax, (int)g_mpu6050.ay, (int)g_mpu6050.az,
-      (int)g_mpu6050.gx, (int)g_mpu6050.gy, (int)g_mpu6050.gz);
+      (int)(g_mpu6050.ax_offset*1000), (int)(g_mpu6050.ay_offset*1000), (int)(g_mpu6050.az_offset*1000),
+      (int)(g_mpu6050.gx_offset*1000), (int)(g_mpu6050.gy_offset*1000), (int)(g_mpu6050.gz_offset*1000));
   console(monitor);
 #endif // Calibration
 
@@ -824,20 +881,30 @@ void schedule_10hz(void) {
 
 #if MONITOR == 6
   memset(monitor, 0, 64);
-  sprintf(monitor, "$%d,%d,%d,%d,%d\n",
-      drift.lf, drift.rf, drift.lb, drift.rb,
-      drift.v1 + drift.v2 + drift.v3 + drift.v4);
+  sprintf(monitor, "$%d,%d,%d\n",
+      drift.back - drift.front,
+      drift.right - drift.left,
+      (int)((drift.vert1 + drift.vert2 + drift.vert3 + drift.vert4)/2));
   console(monitor);
 #endif // Drift
 
 #if MONITOR == 7
+  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
   memset(monitor, 0, 64);
-  sprintf(monitor, "$%d,%d,%d\n",
+  sprintf(monitor, "$%d,%d,%d,%d\n",
       (int)(g_ms5611.P*10-960000),
       (int)(g_ms5611.slow_pressure*1000-960000),
-      (int)(g_ms5611.fast_pressure*1000-960000));
+      (int)(g_ms5611.fast_pressure*1000-960000),
+      (int)(g_height));
   console(monitor);
 #endif // Pressure
+
+#if MONITOR == 8
+  memset(monitor, 0, 64);
+  sprintf(monitor, "$%d,%d,%d\n",
+      (int)g_angle_error_x, (int)g_angle_error_y, (int)g_angle_error_z);
+  console(monitor);
+#endif // 6 axis
 }
 
 void fly() {
@@ -847,20 +914,35 @@ void fly() {
   float gyro_x = g_mpu6050.gyro_x;
   float gyro_y = g_mpu6050.gyro_y;
   float gyro_z = g_mpu6050.gyro_z;
+  float g_drift_pitch = 0;
+  float g_drift_roll = 0;
 
   // Add remote control bias
-  float angle_error_y = angle_y - 0.125*g_pitch; // Max 25 degree
-  float angle_error_x = angle_x - 0.125*g_roll; // Max 25 degree
-  float angle_error_z = angle_z;
-  if (g_yaw < -5 || g_yaw > 5) {
-    angle_error_z = g_yaw > 0 ? -0.2*g_yaw : -0.2*g_yaw;
+  g_angle_error_y = angle_y - 0.4*g_pitch; // Max 50 degree
+  g_angle_error_x = angle_x - 0.4*g_roll; // Max 50 degree
+  g_angle_error_z = angle_z;
+  if (abs(g_yaw) > 5) {
+    float imbalance_coef = g_yaw > 0 ? 2.0 : 2.0;
+    g_angle_error_z = LIMIT(-imbalance_coef*g_yaw, -90, 90);
     g_mpu6050.angle_z = 0;
   }
 
+  if (abs(g_pitch) < 5) {
+    g_drift_pitch = LIMIT(DRIFT_GAIN*(drift.right - drift.left), -50, 50);
+  }
+  if (abs(g_roll) < 5) {
+    g_drift_roll = LIMIT(DRIFT_GAIN*(drift.back - drift.front), -50, 50);
+  }
+
   // Keep alive for the fly
-//  if (g_stick1 == 0) {
-//    fly_mode = init;
-//  }
+  static int stop_counter = 0;
+  if (g_stick1 == 0) {
+    if (stop_counter >= 20) {
+      fly_mode = init;
+    }
+
+    stop_counter += 1;
+  }
 
   switch (fly_mode) {
     case init:
@@ -879,6 +961,12 @@ void fly() {
 
       set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
 
+      // Reset counter before take off
+      stop_counter = 0;
+
+      // Reset angle before take off
+      g_mpu6050.angle_z = 0;
+
       // Move sticks to make it ready to take off
       if (g_throttle <= MIN_THROTTLE && g_yaw <= MIN_YAW
           && g_pitch <= MIN_PITCH && g_roll >= MAX_ROLL) {
@@ -887,7 +975,7 @@ void fly() {
 
       break;
     case ready:
-      // Reset accumulated integral
+      // Reset accumulated integral before take off
       g_I_pitch_accumulated = 0;
       g_I_roll_accumulated = 0;
       g_I_yaw_accumulated = 0;
@@ -895,7 +983,7 @@ void fly() {
       set_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
 
       // Switch to fly mode
-      if (g_throttle > 0) {
+      if (g_throttle > 5) {
         fly_mode = moving;
       }
 
@@ -904,30 +992,30 @@ void fly() {
 
       break;
     case moving:
-      g_P_pitch = LIMIT(angle_error_y*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
-      g_I_pitch_accumulated += angle_error_y*I_PITCH_PERIOD; // 0.005 = 1/FREQ
+      g_P_pitch = LIMIT(g_angle_error_y*g_P_pitch_gain, MIN_PITCH_PROPORTION, MAX_PITCH_PROPORTION);
+      g_I_pitch_accumulated += g_angle_error_y*I_PITCH_PERIOD; // 0.005 = 1/FREQ
       g_I_pitch_accumulated = LIMIT(g_I_pitch_accumulated, MIN_PITCH_INTEGRAL/g_I_pitch_gain, MAX_PITCH_INTEGRAL/g_I_pitch_gain);
       g_I_pitch = g_I_pitch_accumulated*g_I_pitch_gain;
       g_D_pitch = LIMIT(gyro_x*g_D_pitch_gain, MIN_PITCH_DERIVATION, MAX_PITCH_DERIVATION);
 
-      g_P_roll = LIMIT(angle_error_x*g_P_roll_gain, MIN_ROLL_PROPORTION, MAX_ROLL_PROPORTION);
-      g_I_roll_accumulated += angle_error_x*I_ROLL_PERIOD;
+      g_P_roll = LIMIT(g_angle_error_x*g_P_roll_gain, MIN_ROLL_PROPORTION, MAX_ROLL_PROPORTION);
+      g_I_roll_accumulated += g_angle_error_x*I_ROLL_PERIOD;
       g_I_roll_accumulated = LIMIT(g_I_roll_accumulated, MIN_ROLL_INTEGRAL/g_I_roll_gain, MAX_ROLL_INTEGRAL/g_I_roll_gain);
       g_I_roll = g_I_roll_accumulated*g_I_roll_gain;
       g_D_roll = LIMIT(gyro_y*g_D_roll_gain, MIN_ROLL_DERIVATION, MAX_ROLL_DERIVATION);
 
-      g_P_yaw = LIMIT(angle_error_z*g_P_yaw_gain, MIN_YAW_PROPORTION, MAX_YAW_PROPORTION);
-      g_I_yaw_accumulated += angle_error_z*I_YAW_PERIOD;
+      g_P_yaw = LIMIT(g_angle_error_z*g_P_yaw_gain, MIN_YAW_PROPORTION, MAX_YAW_PROPORTION);
+      g_I_yaw_accumulated += g_angle_error_z*I_YAW_PERIOD;
       g_I_yaw_accumulated = LIMIT(g_I_yaw_accumulated, MIN_YAW_INTEGRAL/g_I_yaw_gain, MAX_YAW_INTEGRAL/g_I_yaw_gain);
       g_I_yaw = g_I_yaw_accumulated*g_I_yaw_gain;
       g_D_yaw = LIMIT(gyro_z*g_D_yaw_gain, MIN_YAW_DERIVATION, MAX_YAW_DERIVATION);
 
-      float background = MIN_SPEED + 8*(11.18f*sqrt(g_throttle > 0 ? g_throttle : 0));
+      float background = MIN_SPEED + 5*(15.81f*sqrt(g_throttle));
 
-      g_sig1 = background + (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig2 = background + (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig3 = background - (g_P_pitch + g_I_pitch + g_D_pitch) + (g_P_roll + g_I_roll + g_D_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
-      g_sig4 = background - (g_P_pitch + g_I_pitch + g_D_pitch) - (g_P_roll + g_I_roll + g_D_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig1 = background + (g_P_pitch + g_I_pitch + g_D_pitch + g_drift_pitch) - (g_P_roll + g_I_roll + g_D_roll + g_drift_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig2 = background + (g_P_pitch + g_I_pitch + g_D_pitch + g_drift_pitch) + (g_P_roll + g_I_roll + g_D_roll + g_drift_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig3 = background - (g_P_pitch + g_I_pitch + g_D_pitch + g_drift_pitch) + (g_P_roll + g_I_roll + g_D_roll + g_drift_roll) + (g_P_yaw + g_I_yaw + g_D_yaw);
+      g_sig4 = background - (g_P_pitch + g_I_pitch + g_D_pitch + g_drift_pitch) - (g_P_roll + g_I_roll + g_D_roll + g_drift_roll) - (g_P_yaw + g_I_yaw + g_D_yaw);
 
       g_sig1 = LIMIT(g_sig1, MIN_SPEED, MAX_SPEED);
       g_sig2 = LIMIT(g_sig2, MIN_SPEED, MAX_SPEED);
@@ -938,11 +1026,15 @@ void fly() {
 
       // Pull down the stick to stop
       if (g_throttle <= MIN_THROTTLE) {
-        fly_mode = init;
+        if (stop_counter >= 10) {
+          fly_mode = init;
+        }
+
+        stop_counter += 1;
       }
 
       // Stop if angle too large (crashed), can disable if test with the rig
-      if (angle_error_x < -90 || angle_error_x > 90 || angle_error_y < -90 || angle_error_y > 90) {
+      if (g_angle_error_x < -90 || g_angle_error_x > 90 || g_angle_error_y < -90 || g_angle_error_y > 90) {
         fly_mode = init;
       }
 
@@ -953,14 +1045,18 @@ void fly() {
       break;
     case testing:
       blink();
-      g_sig1 = MIN_SPEED + LIMIT(20*g_throttle, 0, MAX_SPEED);
+      g_sig1 = MIN_SPEED + LIMIT(10*g_throttle, 0, MAX_SPEED);
       g_sig2 = MIN_SPEED + LIMIT(20*g_yaw, 0, MAX_SPEED);
       g_sig3 = MIN_SPEED + LIMIT(20*g_pitch, 0, MAX_SPEED);
       g_sig4 = MIN_SPEED + LIMIT(20*g_roll, 0, MAX_SPEED);
 
       // Pull down the stick to stop
       if (g_throttle <= MIN_THROTTLE) {
-        fly_mode = init;
+        if (stop_counter >= 10) {
+          fly_mode = init;
+        }
+
+        stop_counter += 1;
       }
 
       set_speed(g_sig1, g_sig2, g_sig3, g_sig4);
@@ -985,6 +1081,7 @@ void init_filters() {
   average_filter_init(&g_af[2], 5); // Pitch
   average_filter_init(&g_af[3], 5); // Roll
   average_filter_init(&g_af[4], 5); // Stick 1
+  average_filter_init(&g_af[5], 5); // Stick 1
 }
 
 void init_sensors() {

@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define CALIBRATE_ANGLE
+//#define CALIBRATE_ANGLE
 
 #define MPU6050_I2C_ADDR 0xD0
 
@@ -212,10 +212,12 @@ void MPU6050_calibrate(mpu6050_t *mpu6050) {
   int gx = 0;
   int gy = 0;
   int gz = 0;
+  int ax = -226;
+  int ay = -20;
 
 #ifdef CALIBRATE_ANGLE
-  int ax = 0;
-  int ay = 0;
+  ax = 0;
+  ay = 0;
 #endif
 
   HAL_Delay(2000);
