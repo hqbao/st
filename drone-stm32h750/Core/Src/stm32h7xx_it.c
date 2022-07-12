@@ -46,14 +46,19 @@ typedef enum {
 } FlyMode;
 
 typedef struct {
-  int front; // Left forward
-  int back; // Right forward
-  int left; // Left backward
-  int right; // Right backward
-  int vert1; // Vertical
-  int vert2; // Vertical
-  int vert3; // Vertical
-  int vert4; // Vertical
+  int v_front;
+  int front;
+  int v_back;
+  int back;
+  int v_left;
+  int left;
+  int v_right;
+  int right;
+  int bottom_y;
+  int bottom_x;
+  int dy;
+  int dx;
+  int dh;
 } drift_t;
 
 /* USER CODE END TD */
@@ -66,7 +71,7 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 8 // 1: Calibration,
+#define MONITOR 6 // 1: Calibration,
                   // 2: 6 axis,
                   // 3: ESC,
                   // 4: Remote control,
@@ -83,6 +88,8 @@ typedef struct {
 #define MIN_PWN_IN_CAP 249
 #define MAX_PWN_IN_CAP 498
 #define RANGE_PWM_IN_CAP (MAX_PWN_IN_CAP - MIN_PWN_IN_CAP)
+
+#define OPTICALFLOW_AVG_PWM 24
 
 #define MIN_THROTTLE 0
 #define MAX_THROTTLE RANGE_PWM_IN_CAP
@@ -162,7 +169,7 @@ float g_sig3 = 0;
 float g_sig4 = 0;
 
 // Remote control
-int32_t pwm_in[30];
+int32_t pwm_in[64];
 float g_throttle = 0;
 float g_pitch = 0;
 float g_roll = 0;
@@ -186,12 +193,13 @@ float g_D_yaw_gain = D_YAW_GAIN;
 float g_height = 0;
 
 // Drift detection
-drift_t drift = {0, 0, 0, 0, 0, 0, 0, 0};
+drift_t drift = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Monitor
 char monitor[120];
 
-average_filter_t g_af[6];
+average_filter_t g_af[5];
+kalman_filter_t g_kf[7];
 
 #define UART_BUF_SIZE 256
 uint8_t g_uart_rx_buffer1[UART_BUF_SIZE];
@@ -217,7 +225,6 @@ void console(const char *str);
 void set_speed(uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4);
 void schedule_400hz(void);
 void schedule_20hz(void);
-void schedule_10hz(void);
 void fly(void);
 
 void blink(void) {
@@ -241,15 +248,8 @@ extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
+extern TIM_HandleTypeDef htim8;
 extern TIM_HandleTypeDef htim17;
-extern DMA_HandleTypeDef hdma_uart4_rx;
-extern DMA_HandleTypeDef hdma_uart5_rx;
-extern DMA_HandleTypeDef hdma_uart7_rx;
-extern DMA_HandleTypeDef hdma_uart8_rx;
-extern UART_HandleTypeDef huart4;
-extern UART_HandleTypeDef huart5;
-extern UART_HandleTypeDef huart7;
-extern UART_HandleTypeDef huart8;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
@@ -403,62 +403,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA1 stream0 global interrupt.
-  */
-void DMA1_Stream0_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart4_rx);
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 stream1 global interrupt.
-  */
-void DMA1_Stream1_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream1_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream1_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart5_rx);
-  /* USER CODE BEGIN DMA1_Stream1_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 stream2 global interrupt.
-  */
-void DMA1_Stream2_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream2_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream2_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart7_rx);
-  /* USER CODE BEGIN DMA1_Stream2_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream2_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 stream3 global interrupt.
-  */
-void DMA1_Stream3_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart8_rx);
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream3_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream4 global interrupt.
   */
 void DMA1_Stream4_IRQHandler(void)
@@ -515,6 +459,20 @@ void USART1_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM8 capture compare interrupt.
+  */
+void TIM8_CC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM8_CC_IRQn 0 */
+
+  /* USER CODE END TIM8_CC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim8);
+  /* USER CODE BEGIN TIM8_CC_IRQn 1 */
+
+  /* USER CODE END TIM8_CC_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM5 global interrupt.
   */
 void TIM5_IRQHandler(void)
@@ -526,34 +484,6 @@ void TIM5_IRQHandler(void)
   /* USER CODE BEGIN TIM5_IRQn 1 */
 
   /* USER CODE END TIM5_IRQn 1 */
-}
-
-/**
-  * @brief This function handles UART4 global interrupt.
-  */
-void UART4_IRQHandler(void)
-{
-  /* USER CODE BEGIN UART4_IRQn 0 */
-
-  /* USER CODE END UART4_IRQn 0 */
-  HAL_UART_IRQHandler(&huart4);
-  /* USER CODE BEGIN UART4_IRQn 1 */
-
-  /* USER CODE END UART4_IRQn 1 */
-}
-
-/**
-  * @brief This function handles UART5 global interrupt.
-  */
-void UART5_IRQHandler(void)
-{
-  /* USER CODE BEGIN UART5_IRQn 0 */
-
-  /* USER CODE END UART5_IRQn 0 */
-  HAL_UART_IRQHandler(&huart5);
-  /* USER CODE BEGIN UART5_IRQn 1 */
-
-  /* USER CODE END UART5_IRQn 1 */
 }
 
 /**
@@ -589,34 +519,6 @@ void TIM7_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles UART7 global interrupt.
-  */
-void UART7_IRQHandler(void)
-{
-  /* USER CODE BEGIN UART7_IRQn 0 */
-
-  /* USER CODE END UART7_IRQn 0 */
-  HAL_UART_IRQHandler(&huart7);
-  /* USER CODE BEGIN UART7_IRQn 1 */
-
-  /* USER CODE END UART7_IRQn 1 */
-}
-
-/**
-  * @brief This function handles UART8 global interrupt.
-  */
-void UART8_IRQHandler(void)
-{
-  /* USER CODE BEGIN UART8_IRQn 0 */
-
-  /* USER CODE END UART8_IRQn 0 */
-  HAL_UART_IRQHandler(&huart8);
-  /* USER CODE BEGIN UART8_IRQn 1 */
-
-  /* USER CODE END UART8_IRQn 1 */
-}
-
-/**
   * @brief This function handles TIM17 global interrupt.
   */
 void TIM17_IRQHandler(void)
@@ -645,6 +547,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
           int value = pwm_in[1] - pwm_in[0];
           if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[2] = value;
+            float throttle = average_filter_update(&g_af[0], pwm_in[2] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+            if (abs(throttle) > 5) g_throttle = LIMIT(g_throttle + 0.01*throttle, MIN_THROTTLE, MAX_THROTTLE);
           }
         }
         break;
@@ -658,6 +562,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
           int value = pwm_in[4] - pwm_in[3];
           if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[5] = value;
+            float yaw = average_filter_update(&g_af[1], pwm_in[5] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+            if (abs(g_yaw - yaw) > 1) g_yaw = yaw;
           }
         }
         break;
@@ -671,6 +577,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
           int value = pwm_in[7] - pwm_in[6];
           if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[8] = value;
+            float roll = average_filter_update(&g_af[3], pwm_in[8] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+            if (abs(g_roll - roll) > 1) g_roll = roll;
           }
         }
         break;
@@ -684,21 +592,14 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
           int value = pwm_in[10] - pwm_in[9];
           if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[11] = value;
+            float pitch = average_filter_update(&g_af[2], pwm_in[11] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
+            if (abs(g_pitch - pitch) > 1) g_pitch = pitch;
           }
         }
         break;
       default:
         break;
     }
-
-    float throttle = average_filter_update(&g_af[0], pwm_in[2] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    float yaw = average_filter_update(&g_af[1], pwm_in[5] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    float pitch = average_filter_update(&g_af[2], pwm_in[11] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    float roll = average_filter_update(&g_af[3], pwm_in[8] - MIN_PWN_IN_CAP - RANGE_PWM_IN_CAP/2);
-    if (abs(throttle) > 5) g_throttle = LIMIT(g_throttle + 0.01*throttle, MIN_THROTTLE, MAX_THROTTLE);
-    if (abs(g_yaw - yaw) > 1) g_yaw = yaw;
-    if (abs(g_pitch - pitch) > 1) g_pitch = pitch;
-    if (abs(g_roll - roll) > 1) g_roll = roll;
   }
 
   if (htim->Instance == TIM5) {
@@ -713,14 +614,110 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
           int value = pwm_in[13] - pwm_in[12];
           if (value >= MIN_PWN_IN_CAP-20 && value <= MAX_PWN_IN_CAP+20) {
             pwm_in[14] = value;
+            g_stick1 = pwm_in[14] > MIN_PWN_IN_CAP + 0.5*RANGE_PWM_IN_CAP ? 1 : 0;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_3:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_SET) {
+          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2) == GPIO_PIN_RESET) {
+          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_3);
+          int value = pwm_in[16] - pwm_in[15];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[17] = value;
+            drift.bottom_x = kalman_filter_update(&g_kf[1], pwm_in[17] - OPTICALFLOW_AVG_PWM);
+            drift.dx = abs(drift.front) < abs(drift.bottom_x) ? drift.front : drift.bottom_x;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_4:
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+          pwm_in[18] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_RESET) {
+          pwm_in[19] = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_4);
+          int value = pwm_in[19] - pwm_in[18];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[20] = value;
+            drift.bottom_y = kalman_filter_update(&g_kf[0], pwm_in[20] - OPTICALFLOW_AVG_PWM);
+            drift.dy = abs(drift.right) < abs(drift.bottom_y) ? drift.right : drift.bottom_y;
           }
         }
         break;
       default:
         break;
     }
+  }
 
-    g_stick1 = pwm_in[14] > MIN_PWN_IN_CAP + 0.5*RANGE_PWM_IN_CAP ? 1 : 0;
+  if (htim->Instance == TIM8) {
+    switch (htim->Channel) {
+      case HAL_TIM_ACTIVE_CHANNEL_1:
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == GPIO_PIN_SET) {
+          pwm_in[21] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_1);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == GPIO_PIN_RESET) {
+          pwm_in[22] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_1);
+          int value = pwm_in[22] - pwm_in[21];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[23] = value;
+            drift.front = kalman_filter_update(&g_kf[2], pwm_in[23] - OPTICALFLOW_AVG_PWM);
+            drift.dx = abs(drift.front) < abs(drift.bottom_x) ? drift.front : drift.bottom_x;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_2:
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7) == GPIO_PIN_SET) {
+          pwm_in[24] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_2);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7) == GPIO_PIN_RESET) {
+          pwm_in[25] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_2);
+          int value = pwm_in[25] - pwm_in[24];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[26] = value;
+            drift.v_front = kalman_filter_update(&g_kf[3], pwm_in[26] - OPTICALFLOW_AVG_PWM);
+            drift.dh = abs(drift.v_front) < abs(drift.v_right) ? drift.v_front : drift.v_right;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_3:
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == GPIO_PIN_SET) {
+          pwm_in[27] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_3);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == GPIO_PIN_RESET) {
+          pwm_in[28] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_3);
+          int value = pwm_in[28] - pwm_in[27];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[29] = value;
+            drift.right = kalman_filter_update(&g_kf[4], pwm_in[29] - OPTICALFLOW_AVG_PWM);
+            drift.dy = abs(drift.right) < abs(drift.bottom_y) ? drift.right : drift.bottom_y;
+          }
+        }
+        break;
+      case HAL_TIM_ACTIVE_CHANNEL_4:
+        if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9) == GPIO_PIN_SET) {
+          pwm_in[30] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_4);
+        }
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_RESET) {
+          pwm_in[31] = HAL_TIM_ReadCapturedValue(&htim8, TIM_CHANNEL_4);
+          int value = pwm_in[31] - pwm_in[30];
+          if (value >= OPTICALFLOW_AVG_PWM - 10 && value <= OPTICALFLOW_AVG_PWM + 10) {
+            pwm_in[32] = value;
+            drift.v_right = kalman_filter_update(&g_kf[5], pwm_in[32] - OPTICALFLOW_AVG_PWM);
+            drift.dh = abs(drift.v_front) < abs(drift.v_right) ? drift.v_front : drift.v_right;
+          }
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   static char measuring = 0;
@@ -734,21 +731,20 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     switch (htim->Channel) {
       case HAL_TIM_ACTIVE_CHANNEL_1:
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET) {
-          pwm_in[15] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
+          pwm_in[33] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
         }
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_SET) {
-          pwm_in[16] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
-          int value = pwm_in[16] - pwm_in[15];
-          pwm_in[17] = value;
+          pwm_in[34] = HAL_TIM_ReadCapturedValue(&htim17, TIM_CHANNEL_1);
+          int value = pwm_in[34] - pwm_in[33];
+          pwm_in[35] = value;
+          g_height = kalman_filter_update(&g_kf[6], pwm_in[35]);
           measuring = 0;
         }
         break;
       default:
         break;
     }
-
-    g_height = pwm_in[17];
   }
 }
 
@@ -764,83 +760,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void schedule_20hz(void) {
-  static char line[16];
-  static int starts[4] = {-1, -1, -1, -1};
-
-  for (int t = 0; t < 4; t += 1) {
-    int start = starts[t];
-    int end = -1;
-    uint8_t *p;
-    switch (t) {
-    case 0: p = g_uart_rx_buffer1; break;
-    case 1: p = g_uart_rx_buffer2; break;
-    case 2: p = g_uart_rx_buffer3; break;
-    case 3: p = g_uart_rx_buffer4; break;
-    }
-
-    if (start == -1) {
-      for (int i = 0; i < UART_BUF_SIZE; i += 1) {
-        if (p[i] == '$') {
-          start = i;
-          break;
-        }
-      }
-    }
-
-    if (start > -1) {
-      for (int i = 0; i < UART_BUF_SIZE; i += 1) {
-        if (p[(start+i)%UART_BUF_SIZE] == 0) {
-          start = -1;
-          break;
-        }
-
-        if (p[(start+i)%UART_BUF_SIZE] == '\n') {
-          end = i;
-          break;
-        }
-      }
-    }
-
-    if (start > -1 && end > -1) {
-      memset(line, 0, 16);
-
-      if (start < end) {
-        memcpy(line, &p[start], end - start);
-        memset(&p[start], 0, end - start);
-      }
-      else if (start > end) {
-        memcpy(line, &p[start], UART_BUF_SIZE - start);
-        memset(&p[start], 0, UART_BUF_SIZE - start);
-        memcpy(&line[UART_BUF_SIZE - start], p, end);
-        memset(p, 0, end);
-      }
-
-      starts[t] = -1;
-
-      int idx = 0;
-      for (idx = 0; idx < 16; idx += 1) {
-        if (line[idx] == ',') {
-          break;
-        }
-      }
-      line[idx] = 0;
-      int dy = atoi(&line[1]);
-      int dx = atoi(&line[idx+1]);
-      switch (t) {
-      case 0: drift.left = dx;drift.vert1 = dy; break;
-      case 1: drift.back = dx;drift.vert2 = dy; break;
-      case 2: drift.right = dx;drift.vert3 = dy; break;
-      case 3: drift.front = dx;drift.vert4 = dy; break;
-      }
-    }
-  }
-
-  static char run_10hz = 1;
-  if (run_10hz) schedule_10hz();
-  run_10hz = !run_10hz;
-}
-
-void schedule_10hz(void) {
 #if MONITOR == 1
   memset(monitor, 0, 64);
   sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
@@ -881,10 +800,12 @@ void schedule_10hz(void) {
 
 #if MONITOR == 6
   memset(monitor, 0, 64);
+//  sprintf(monitor, "$%d,%d,%d,%d,%d,%d\n",
+//      drift.front, drift.v_front, drift.bottom_x,
+//      drift.right, drift.v_right, drift.bottom_y);
+//  console(monitor);
   sprintf(monitor, "$%d,%d,%d\n",
-      drift.back - drift.front,
-      drift.right - drift.left,
-      (int)((drift.vert1 + drift.vert2 + drift.vert3 + drift.vert4)/2));
+      drift.dy, drift.dx, drift.dh);
   console(monitor);
 #endif // Drift
 
@@ -928,10 +849,10 @@ void fly() {
   }
 
   if (abs(g_pitch) < 5) {
-    g_drift_pitch = LIMIT(DRIFT_GAIN*(drift.right - drift.left), -50, 50);
+    g_drift_pitch = LIMIT(DRIFT_GAIN*drift.dy, -50, 50);
   }
   if (abs(g_roll) < 5) {
-    g_drift_roll = LIMIT(DRIFT_GAIN*(drift.back - drift.front), -50, 50);
+    g_drift_roll = LIMIT(DRIFT_GAIN*drift.dx, -50, 50);
   }
 
   // Keep alive for the fly
@@ -1076,12 +997,19 @@ void set_speed(uint32_t m1, uint32_t m2, uint32_t m3, uint32_t m4) {
 }
 
 void init_filters() {
-  average_filter_init(&g_af[0], 5); // Thrust
-  average_filter_init(&g_af[1], 5); // Yaw
-  average_filter_init(&g_af[2], 5); // Pitch
-  average_filter_init(&g_af[3], 5); // Roll
-  average_filter_init(&g_af[4], 5); // Stick 1
-  average_filter_init(&g_af[5], 5); // Stick 1
+  average_filter_init(&g_af[0], 5);
+  average_filter_init(&g_af[1], 5);
+  average_filter_init(&g_af[2], 5);
+  average_filter_init(&g_af[3], 5);
+  average_filter_init(&g_af[4], 5);
+
+  kalman_filter_init(&g_kf[0], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[1], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[2], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[3], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[4], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[5], 2, 2, 0.01);
+  kalman_filter_init(&g_kf[6], 2, 2, 0.01);
 }
 
 void init_sensors() {
