@@ -19,11 +19,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
 #include <stdio.h>
+#include <storage.h>
 #include <string.h>
 #include "kalman.h"
 #include "gy86.h"
@@ -97,12 +96,6 @@ void flash(uint8_t count) {
 extern void init_filters();
 extern void init_sensors();
 
-#define UART_BUF_SIZE 256
-extern uint8_t g_uart_rx_buffer1[UART_BUF_SIZE];
-extern uint8_t g_uart_rx_buffer2[UART_BUF_SIZE];
-extern uint8_t g_uart_rx_buffer3[UART_BUF_SIZE];
-extern uint8_t g_uart_rx_buffer4[UART_BUF_SIZE];
-
 /* USER CODE END 0 */
 
 /**
@@ -147,7 +140,6 @@ int main(void)
 
   // Turn off led
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, RESET);
-
   flash(5);
 
   // Initialise filters for remote control

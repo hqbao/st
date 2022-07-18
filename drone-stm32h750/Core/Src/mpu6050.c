@@ -212,8 +212,8 @@ void MPU6050_calibrate(mpu6050_t *mpu6050) {
   int gx = 0;
   int gy = 0;
   int gz = 0;
-  int ax = -226;
-  int ay = -20;
+  int ax = -125;
+  int ay = 19;
 
 #ifdef CALIBRATE_ANGLE
   ax = 0;

@@ -46,6 +46,8 @@ typedef enum {
 } FlyMode;
 
 typedef struct {
+  // External drift detection
+  // Drift detection by optical flow cameras
   int v_front;
   int front;
   int v_back;
@@ -71,7 +73,7 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define MONITOR 6 // 1: Calibration,
+#define MONITOR 2 // 1: Calibration,
                   // 2: 6 axis,
                   // 3: ESC,
                   // 4: Remote control,
@@ -200,12 +202,6 @@ char monitor[120];
 
 average_filter_t g_af[5];
 kalman_filter_t g_kf[7];
-
-#define UART_BUF_SIZE 256
-uint8_t g_uart_rx_buffer1[UART_BUF_SIZE];
-uint8_t g_uart_rx_buffer2[UART_BUF_SIZE];
-uint8_t g_uart_rx_buffer3[UART_BUF_SIZE];
-uint8_t g_uart_rx_buffer4[UART_BUF_SIZE];
 
 // Gyroscope
 mpu6050_t g_mpu6050;
@@ -842,16 +838,18 @@ void fly() {
   g_angle_error_y = angle_y - 0.4*g_pitch; // Max 50 degree
   g_angle_error_x = angle_x - 0.4*g_roll; // Max 50 degree
   g_angle_error_z = angle_z;
-  if (abs(g_yaw) > 5) {
-    float imbalance_coef = g_yaw > 0 ? 2.0 : 2.0;
-    g_angle_error_z = LIMIT(-imbalance_coef*g_yaw, -90, 90);
-    g_mpu6050.angle_z = 0;
-  }
 
-  if (abs(g_pitch) < 5) {
+  // On control with remote
+  if (abs(g_yaw) > 5 || abs(g_pitch) < 5 || abs(g_roll) < 5) {
+    // Add yaw angle to make it turning
+    float imbalance_coef = g_yaw > 0 ? 1.5 : 1.5; // For imbalance central mass drone
+    g_angle_error_z = LIMIT(-imbalance_coef*g_yaw, -90, 90);
+
+    // Reset the yaw angle so that it doesn't have to recover after force turning
+    g_mpu6050.angle_z = 0;
+
+    // Recover from drift detection
     g_drift_pitch = LIMIT(DRIFT_GAIN*drift.dy, -50, 50);
-  }
-  if (abs(g_roll) < 5) {
     g_drift_roll = LIMIT(DRIFT_GAIN*drift.dx, -50, 50);
   }
 
@@ -880,13 +878,10 @@ void fly() {
       g_I_yaw_period = I_YAW_PERIOD;
       g_D_yaw_gain = D_YAW_GAIN;
 
-      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
-
       // Reset counter before take off
       stop_counter = 0;
 
-      // Reset angle before take off
-      g_mpu6050.angle_z = 0;
+      set_speed(INIT_SPEED, INIT_SPEED, INIT_SPEED, INIT_SPEED);
 
       // Move sticks to make it ready to take off
       if (g_throttle <= MIN_THROTTLE && g_yaw <= MIN_YAW
@@ -900,6 +895,9 @@ void fly() {
       g_I_pitch_accumulated = 0;
       g_I_roll_accumulated = 0;
       g_I_yaw_accumulated = 0;
+
+      // Reset angle before take off
+      g_mpu6050.angle_z = 0;
 
       set_speed(MIN_SPEED, MIN_SPEED, MIN_SPEED, MIN_SPEED);
 
